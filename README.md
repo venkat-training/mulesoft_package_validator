@@ -38,5 +38,8 @@ python main.py
 You can also install your project as an editable package using pip. This allows Python to recognize the package without adjusting PYTHONPATH.
 
 Navigate to your project directory and run:
+pip install -e . --use-pep517
 
 pip install -e .
+
+pip install --upgrade setuptools
