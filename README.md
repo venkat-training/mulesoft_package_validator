@@ -25,3 +25,18 @@ build_folder_path = '/path/to/build/folder'
 
 result = validate_dependencies_and_size(package_folder_path, build_folder_path)
 print(result)
+
+## setup main.py
+On Unix or macOS, you can run:
+export PYTHONPATH=.
+python main.py
+
+On Windows, you can run:
+set PYTHONPATH=.
+python main.py
+
+You can also install your project as an editable package using pip. This allows Python to recognize the package without adjusting PYTHONPATH.
+
+Navigate to your project directory and run:
+
+pip install -e .
