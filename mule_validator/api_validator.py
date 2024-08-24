@@ -9,19 +9,31 @@ def validate_api_spec_and_flows(package_folder_path):
     Returns:
         dict: A dictionary containing the validation status of API specifications and definition flows.
     """
+    
+
     src_main_path = os.path.join(package_folder_path, 'src', 'main')
+    
+    if os.path.exists(src_main_path):
+        print(f"Path exists: {src_main_path}")
+    else:
+        print(f"Path does not exist: {src_main_path}")
+
     resources_path = os.path.join(src_main_path, 'resources')
+    if os.path.exists(resources_path):
+        print(f"Path exists: {resources_path}")
+    else:
+        print(f"Path does not exist: {resources_path}")
     api_spec_files = []
     api_definition_flows = []
-
+    print("API Validation resources_path :", resources_path)
     for root, _, files in os.walk(resources_path):
         for file in files:
-            if file.endswith('.raml') or file.endswith('.yaml') or file.endswith('.json'):
+            if isinstance(file, str) and file.endswith('.raml') or file.endswith('.yaml') or file.endswith('.json'):
                 api_spec_files.append(os.path.join(root, file))
 
     for root, _, files in os.walk(src_main_path):
         for file in files:
-            if file.endswith('.xml'):
+            if isinstance(file, str) and file.endswith('.xml'):
                 file_path = os.path.join(root, file)
                 try:
                     tree = ET.parse(file_path)
