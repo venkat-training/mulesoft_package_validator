@@ -346,12 +346,13 @@ def review_all_files(directory):
     
     # Print results in a tabular format
     print(tabulate(table, headers=["File Name", "Status", "Issue"], tablefmt="grid"))
+    #return tabulate(table, headers=["File Name", "Status", "Issue"], tablefmt="grid")
 
 # Example usage
 #directory = 'c:/work/rnd/mulesoft-temp/sbs-ott-triggerintegrator'
 #directory = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-mpx-mediamanagmentservices'
 #directory = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-tbs-ingestmediainfo'
 #directory = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-pnc-integrationservices'
-directory = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-eis-integrationservices'
+#directory = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-eis-integrationservices'
 
-review_all_files(directory)
+#review_all_files(directory)
