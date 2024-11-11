@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" version="24.8.4">
   <diagram name="Bitbucket-Pipeline" id="05Y_zu9DLisappliimnP">
-    <mxGraphModel dx="1050" dy="564" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" background="#ffffff" math="0" shadow="0">
+    <mxGraphModel dx="1050" dy="564" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="#ffffff" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -21,7 +21,7 @@
         <mxCell id="ze9acHEHGeAQpXTy0x80-9" value="" style="image;html=1;image=img/lib/atlassian/Atlassian_Logo.svg;rounded=1;" parent="1" vertex="1">
           <mxGeometry x="30" y="269" width="30" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="ze9acHEHGeAQpXTy0x80-19" value="SBS" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud_alt;strokeColor=#232F3E;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#0000FF;dashed=0;labelBackgroundColor=#FFFFFF;rounded=1;" parent="1" vertex="1">
+        <mxCell id="ze9acHEHGeAQpXTy0x80-19" value="SBS" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud_alt;strokeColor=#FF8000;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#FF8000;dashed=0;labelBackgroundColor=#FFFFFF;rounded=1;" parent="1" vertex="1">
           <mxGeometry x="482" y="118" width="348" height="392" as="geometry" />
         </mxCell>
         <mxCell id="ze9acHEHGeAQpXTy0x80-16" value="&lt;span style=&quot;font-size: 9px;&quot; data-colorparams=&quot;#44852c_null_null&quot; data-colorformula=&quot;RGB(68,133,44)&quot;&gt;&lt;font color=&quot;#ff3333&quot; style=&quot;font-size: 9px;&quot;&gt;AWSEISEIP02&lt;/font&gt;&lt;/span&gt;" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=9;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_account;strokeColor=#CD2264;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#CD2264;dashed=0;rounded=1;" parent="ze9acHEHGeAQpXTy0x80-19" vertex="1">
