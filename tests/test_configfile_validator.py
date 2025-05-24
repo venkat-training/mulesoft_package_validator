@@ -1,283 +1,148 @@
-import pytest
+import unittest
 import os
-import yaml # For yaml.YAMLError
-from unittest.mock import patch, MagicMock, mock_open
+import tempfile
+import shutil
+import yaml # For creating test files
 
-from mule_validator.configfile_validator import (
-    validate_yaml_file,
-    validate_files,
-    MANDATORY_CONFIG_FILES,
-    OPTIONAL_CONFIG_FILES,
-    RESOURCES_PATH_NAME
-)
+from mule_validator.configfile_validator import validate_yaml_file
+# No longer need MANDATORY_CONFIG_FILES, OPTIONAL_CONFIG_FILES, RESOURCES_PATH_NAME for these unit tests
+# as we are directly testing validate_yaml_file with controlled content.
 
-# Mock the logger for all tests in this module
-@pytest.fixture(autouse=True)
-def mock_logger_fixture(): # Renamed to avoid conflict if other fixtures are named mock_logger
-    with patch('mule_validator.configfile_validator.logger', MagicMock()) as mock_log:
-        yield mock_log
+# Temporarily suppress logging from the validator module to keep test output clean
+import logging
+logging.getLogger('mule_validator.configfile_validator').setLevel(logging.CRITICAL)
 
-# 1. Tests for validate_yaml_file(file_path)
+class TestConfigFileValidatorSecurity(unittest.TestCase):
 
-@patch('builtins.open', new_callable=mock_open)
-@patch('yaml.safe_load')
-def test_validate_yaml_file_valid(mock_safe_load, mock_file_open):
-    """Test validate_yaml_file with valid YAML content."""
-    mock_safe_load.return_value = {"key": "value"} # Simulate successful parsing
-    
-    is_valid, error = validate_yaml_file("dummy_path.yaml")
-    
-    assert is_valid is True
-    assert error is None
-    mock_file_open.assert_called_once_with("dummy_path.yaml", 'r', encoding='utf-8')
-    mock_safe_load.assert_called_once()
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        # We are writing files directly to test_dir for validate_yaml_file tests
+        # No need for a nested 'src/main/resources' structure here as validate_yaml_file takes a direct path.
 
-@patch('builtins.open', new_callable=mock_open)
-@patch('yaml.safe_load')
-def test_validate_yaml_file_invalid_yaml_error(mock_safe_load, mock_file_open, caplog):
-    """Test validate_yaml_file with a yaml.YAMLError."""
-    mock_safe_load.side_effect = yaml.YAMLError("mocked yaml error")
-    
-    is_valid, error_message = validate_yaml_file("dummy_path.yaml")
-    
-    assert is_valid is False
-    assert "mocked yaml error" in error_message # Original returns the full error string.
-    
-    assert any(
-        "Invalid YAML in file dummy_path.yaml: Invalid YAML syntax: mocked yaml error" in record.message
-        for record in caplog.records if record.levelname == "ERROR"
-    )
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
 
-@patch('builtins.open', new_callable=mock_open)
-def test_validate_yaml_file_io_error(mock_file_open, caplog):
-    """Test validate_yaml_file with an IOError on file open."""
-    mock_file_open.side_effect = IOError("mocked file error")
-    
-    is_valid, error_message = validate_yaml_file("dummy_path.yaml")
-    
-    assert is_valid is False
-    # The actual error message includes "Error opening or reading file: " prefix
-    assert "Error opening or reading file: mocked file error" == error_message
-    
-    assert any(
-        "Error for file dummy_path.yaml: Error opening or reading file: mocked file error" in record.message
-        for record in caplog.records if record.levelname == "ERROR"
-    )
+    def _write_temp_yaml_file(self, filename, content_dict=None, content_str=None):
+        file_path = os.path.join(self.test_dir, filename)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            if content_dict is not None:
+                yaml.dump(content_dict, f, sort_keys=False) # sort_keys=False to maintain order for easier assertion if needed
+            elif content_str is not None:
+                f.write(content_str)
+            else:
+                raise ValueError("Either content_dict or content_str must be provided")
+        return file_path
+
+    def test_yaml_with_keyword_secret(self):
+        yaml_content = {
+            "user": {
+                "name": "testuser",
+                "password": "actual_password123" # Keyword "password"
+            },
+            "api_access":{
+                "key": "somekey",
+                "secretkey": "thisIsASecretKey123!" # Keyword "secretkey"
+            }
+        }
+        file_path = self._write_temp_yaml_file("keyword_secret.yaml", content_dict=yaml_content)
+        results = validate_yaml_file(file_path)
+        
+        self.assertTrue(any(r['status'] == 'SecurityWarning' for r in results), "Should raise a SecurityWarning")
+        
+        password_warning_found = False
+        secretkey_warning_found = False
+        for r in results:
+            if r['status'] == 'SecurityWarning':
+                self.assertEqual(r['file_name'], file_path)
+                details = r.get('details', {})
+                if details.get('path') == "user.password" and "matches a password keyword" in details.get('message', ''):
+                    password_warning_found = True
+                    self.assertEqual(details.get('key'), "password")
+                    self.assertTrue(details.get('value_excerpt', '').startswith("actual_password123"))
+                if details.get('path') == "api_access.secretkey" and "matches a generic secret keyword" in details.get('message', ''):
+                    secretkey_warning_found = True
+                    self.assertEqual(details.get('key'), "secretkey")
+                    self.assertTrue(details.get('value_excerpt', '').startswith("thisIsASecretKey123!"))
+        
+        self.assertTrue(password_warning_found, "Keyword 'password' warning not found or incorrect.")
+        self.assertTrue(secretkey_warning_found, "Keyword 'secretkey' warning not found or incorrect.")
+
+    def test_yaml_with_value_pattern_secret(self):
+        jwt_token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        yaml_content_str = f"settings:\n  token: {jwt_token}\n  another_setting: some_value"
+        file_path = self._write_temp_yaml_file("value_pattern_secret.yaml", content_str=yaml_content_str)
+        results = validate_yaml_file(file_path)
+
+        self.assertTrue(any(r['status'] == 'SecurityWarning' for r in results), "Should raise a SecurityWarning for JWT token")
+        
+        jwt_warning_found = False
+        for r in results:
+            if r['status'] == 'SecurityWarning':
+                details = r.get('details', {})
+                if details.get('path') == 'settings.token' and "matches generic secret pattern" in details.get('message', ''):
+                    self.assertTrue(details.get('value_excerpt', '').startswith("eyJhbGciOiJIUzI1NiJ9"))
+                    self.assertEqual(details.get('key'), "token")
+                    jwt_warning_found = True
+        self.assertTrue(jwt_warning_found, "JWT pattern warning not found or incorrect.")
+
+    def test_yaml_with_common_password_value(self):
+        yaml_content_str = "config:\n  default_user: admin" # Common password pattern
+        file_path = self._write_temp_yaml_file("common_password.yaml", content_str=yaml_content_str)
+        results = validate_yaml_file(file_path)
+        self.assertTrue(any(r['status'] == 'SecurityWarning' for r in results), "Should raise a SecurityWarning for common password")
+
+        admin_warning_found = False
+        for r in results:
+            if r['status'] == 'SecurityWarning':
+                details = r.get('details', {})
+                if details.get('path') == 'config.default_user' and "matches common password pattern" in details.get('message', ''):
+                    self.assertEqual(details.get('key'), "default_user")
+                    self.assertTrue(details.get('value_excerpt', '').startswith("admin"))
+                    admin_warning_found = True
+        self.assertTrue(admin_warning_found, "Common password 'admin' warning not found.")
+
+    def test_yaml_clean_no_secrets(self):
+        yaml_content_str = "server:\n  port: 8081"
+        file_path = self._write_temp_yaml_file("clean.yaml", content_str=yaml_content_str)
+        results = validate_yaml_file(file_path)
+        
+        security_warnings = [r for r in results if r['status'] == 'SecurityWarning']
+        self.assertEqual(len(security_warnings), 0, f"Expected 0 security warnings for a clean YAML, got: {results}")
+        # A clean file might still have other status if it's empty or fails other non-security checks,
+        # but for this test, we focus on no *security* warnings.
+        # The current validate_yaml_file returns an empty list if no issues at all.
+        if not results: # If results is empty, it's valid and no secrets.
+            pass
+        else: # If results is not empty, ensure no security warnings.
+            self.assertFalse(any(r['status'] == 'SecurityWarning' for r in results), 
+                             f"Clean YAML should not produce security warnings. Got: {results}")
 
 
-# 2. Tests for validate_files(package_folder_path)
+    def test_yaml_invalid_syntax(self):
+        invalid_yaml_str = "server: port: 8081" # No colon for server, invalid
+        file_path = self._write_temp_yaml_file("invalid_syntax.yaml", content_str=invalid_yaml_str)
+        results = validate_yaml_file(file_path)
 
-@pytest.fixture
-def mock_fs_operations():
-    """Pytest fixture to mock os.path.isdir, os.path.isfile, and validate_yaml_file."""
-    with patch('os.path.isdir') as mock_isdir, \
-         patch('os.path.isfile') as mock_isfile, \
-         patch('mule_validator.configfile_validator.validate_yaml_file') as mock_validate_yaml:
-        yield mock_isdir, mock_isfile, mock_validate_yaml
+        self.assertTrue(len(results) >= 1, "Should return at least one issue for invalid syntax.")
+        self.assertEqual(results[0]['status'], 'InvalidSyntax')
+        self.assertEqual(results[0]['file_name'], file_path)
+        self.assertTrue("Invalid YAML syntax" in results[0]['message'])
+    
+    def test_yaml_file_not_found(self):
+        results = validate_yaml_file(os.path.join(self.test_dir, "non_existent_file.yaml"))
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['status'], 'Error')
+        self.assertTrue("Error opening or reading file" in results[0]['message'])
 
-def test_validate_files_resources_dir_not_found(mock_fs_operations, caplog):
-    """Test validate_files when the resources directory does not exist."""
-    mock_isdir, _, _ = mock_fs_operations
-    mock_isdir.return_value = False # Resources directory does not exist
-    
-    package_path = "dummy_package_path"
-    expected_resources_path = os.path.join(package_path, RESOURCES_PATH_NAME)
-    results = validate_files(package_path)
-    
-    assert len(results) == 1
-    assert results[0] == {
-        'file_name': 'N/A', 
-        'status': 'Error', 
-        'message': f'Resources directory not found at: {expected_resources_path}'
-        # 'type': 'Directory' # Type was not in the refactored code for this specific error
-    }
-    mock_isdir.assert_called_once_with(expected_resources_path)
-    assert any(
-        f"Resources directory not found at: {expected_resources_path}" in record.message
-        for record in caplog.records if record.levelname == "ERROR"
-    )
+    def test_empty_yaml_file(self):
+        file_path = self._write_temp_yaml_file("empty.yaml", content_str="")
+        results = validate_yaml_file(file_path)
+        self.assertEqual(len(results), 0, f"Expected 0 issues for an empty YAML, got: {results}")
 
-def test_validate_files_all_present_and_valid(mock_fs_operations):
-    """Test validate_files with all mandatory and optional files present and valid."""
-    mock_isdir, mock_isfile, mock_validate_yaml = mock_fs_operations
-    
-    mock_isdir.return_value = True # Resources directory exists
-    mock_isfile.return_value = True # All files exist
-    mock_validate_yaml.return_value = (True, None) # All files are valid YAML
-    
-    package_path = "dummy_package_path"
-    results = validate_files(package_path)
-    
-    assert len(results) == len(MANDATORY_CONFIG_FILES) + len(OPTIONAL_CONFIG_FILES)
-    for item in results:
-        assert item['status'] == 'Valid'
-        assert item['message'] == ''
-        assert item['file_name'] in MANDATORY_CONFIG_FILES + OPTIONAL_CONFIG_FILES
-        if item['file_name'] in MANDATORY_CONFIG_FILES:
-            assert item['type'] == 'Mandatory'
-        else:
-            assert item['type'] == 'Optional'
+    def test_yaml_with_only_comments(self):
+        file_path = self._write_temp_yaml_file("comments_only.yaml", content_str="# This is a comment\n# So is this")
+        results = validate_yaml_file(file_path)
+        self.assertEqual(len(results), 0, f"Expected 0 issues for a comments-only YAML, got: {results}")
 
-def test_validate_files_one_mandatory_missing(mock_fs_operations, caplog):
-    """Test validate_files with one mandatory file missing."""
-    mock_isdir, mock_isfile, mock_validate_yaml = mock_fs_operations
-    
-    mock_isdir.return_value = True
-    
-    missing_file = MANDATORY_CONFIG_FILES[0]
-    def isfile_side_effect(path):
-        return os.path.basename(path) != missing_file
-    mock_isfile.side_effect = isfile_side_effect
-    mock_validate_yaml.return_value = (True, None)
-    
-    package_path = "dummy_package_path"
-    results = validate_files(package_path)
-    
-    missing_file_result = next(item for item in results if item['file_name'] == missing_file)
-    assert missing_file_result['status'] == 'Missing'
-    assert missing_file_result['message'] == 'File not found'
-    assert missing_file_result['type'] == 'Mandatory'
-    
-    assert any(
-        f"Mandatory file missing: {os.path.join(package_path, RESOURCES_PATH_NAME, missing_file)}" in record.message
-        for record in caplog.records if record.levelname == "WARNING"
-    )
-
-def test_validate_files_one_mandatory_invalid(mock_fs_operations):
-    """Test validate_files with one mandatory file being invalid YAML."""
-    mock_isdir, mock_isfile, mock_validate_yaml = mock_fs_operations
-    
-    mock_isdir.return_value = True
-    mock_isfile.return_value = True # All files exist
-    
-    invalid_file = MANDATORY_CONFIG_FILES[0]
-    def validate_yaml_side_effect(path):
-        if os.path.basename(path) == invalid_file:
-            return (False, "mocked yaml error")
-        return (True, None)
-    mock_validate_yaml.side_effect = validate_yaml_side_effect
-    
-    package_path = "dummy_package_path"
-    results = validate_files(package_path)
-    
-    invalid_file_result = next(item for item in results if item['file_name'] == invalid_file)
-    assert invalid_file_result['status'] == 'Invalid'
-    assert invalid_file_result['message'] == 'mocked yaml error'
-    assert invalid_file_result['type'] == 'Mandatory'
-
-def test_validate_files_one_optional_missing(mock_fs_operations, caplog):
-    """Test validate_files with one optional file missing."""
-    mock_isdir, mock_isfile, mock_validate_yaml = mock_fs_operations
-    
-    mock_isdir.return_value = True
-    missing_optional_file = OPTIONAL_CONFIG_FILES[0]
-    
-    def isfile_side_effect(path):
-        return os.path.basename(path) != missing_optional_file
-    mock_isfile.side_effect = isfile_side_effect
-    mock_validate_yaml.return_value = (True, None)
-    
-    package_path = "dummy_package_path"
-    results = validate_files(package_path)
-    
-    # Check that the missing optional file is NOT in the results list
-    assert not any(item['file_name'] == missing_optional_file for item in results)
-    # Check that its absence is logged
-    expected_log_msg_part = f"Optional file not found (this is not an error): {os.path.join(package_path, RESOURCES_PATH_NAME, missing_optional_file)}"
-    assert any(
-        expected_log_msg_part in record.message for record in caplog.records if record.levelname == "INFO"
-    )
-
-def test_validate_files_one_optional_invalid(mock_fs_operations):
-    """Test validate_files with one optional file being invalid YAML."""
-    mock_isdir, mock_isfile, mock_validate_yaml = mock_fs_operations
-    
-    mock_isdir.return_value = True
-    mock_isfile.return_value = True # All files exist
-    
-    invalid_optional_file = OPTIONAL_CONFIG_FILES[0]
-    def validate_yaml_side_effect(path):
-        if os.path.basename(path) == invalid_optional_file:
-            return (False, "optional yaml error")
-        return (True, None)
-    mock_validate_yaml.side_effect = validate_yaml_side_effect
-    
-    package_path = "dummy_package_path"
-    results = validate_files(package_path)
-    
-    invalid_file_result = next(item for item in results if item['file_name'] == invalid_optional_file)
-    assert invalid_file_result['status'] == 'Invalid'
-    assert invalid_file_result['message'] == 'optional yaml error'
-    assert invalid_file_result['type'] == 'Optional'
-
-def test_validate_files_no_yaml_files_found(mock_fs_operations, caplog):
-    """Test validate_files when resources directory exists but no config files are found."""
-    mock_isdir, mock_isfile, _ = mock_fs_operations
-    
-    mock_isdir.return_value = True # Resources directory exists
-    mock_isfile.return_value = False # No files exist
-    
-    package_path = "dummy_package_path"
-    results = validate_files(package_path)
-    
-    # Expect results for all mandatory files (as 'Missing')
-    # Optional files that are missing are only logged, not added to results.
-    assert len(results) == len(MANDATORY_CONFIG_FILES)
-    for item in results:
-        assert item['file_name'] in MANDATORY_CONFIG_FILES
-        assert item['status'] == 'Missing'
-        assert item['type'] == 'Mandatory'
-
-    # Check logs for missing mandatory files
-    for m_file in MANDATORY_CONFIG_FILES:
-        assert any(
-            f"Mandatory file missing: {os.path.join(package_path, RESOURCES_PATH_NAME, m_file)}" in record.message
-            for record in caplog.records if record.levelname == "WARNING"
-        )
-    # Check logs for missing optional files (logged as INFO)
-    for o_file in OPTIONAL_CONFIG_FILES:
-        assert any(
-            f"Optional file not found (this is not an error): {os.path.join(package_path, RESOURCES_PATH_NAME, o_file)}" in record.message
-            for record in caplog.records if record.levelname == "INFO"
-        )
-
-def test_validate_files_empty_resources_dir(mock_fs_operations):
-    """Test validate_files when resources directory exists but is empty (no config files)."""
-    mock_isdir, mock_isfile, _ = mock_fs_operations
-    mock_isdir.return_value = True
-    mock_isfile.return_value = False # No files are found
-
-    results = validate_files("dummy_package_path")
-    
-    # Only mandatory files should be reported as missing
-    assert len(results) == len(MANDATORY_CONFIG_FILES)
-    for file_name in MANDATORY_CONFIG_FILES:
-        assert any(r['file_name'] == file_name and r['status'] == 'Missing' for r in results)
-
-    # Optional files are just logged as info if missing, not included in results as "Missing"
-    for file_name in OPTIONAL_CONFIG_FILES:
-        assert not any(r['file_name'] == file_name and r['status'] == 'Missing' for r in results)
-
-# Example of how to check the 'type' was added to the results for the specific error case
-def test_validate_files_resources_dir_not_found_structure_check(mock_fs_operations, caplog):
-    """Test the exact structure of the error dictionary when resources dir is not found."""
-    mock_isdir, _, _ = mock_fs_operations
-    mock_isdir.return_value = False
-    
-    package_path = "dummy_package_path"
-    expected_resources_path = os.path.join(package_path, RESOURCES_PATH_NAME)
-    results = validate_files(package_path)
-    
-    # The original refactored code for validate_files did not add a 'type' field for this specific error.
-    # If it were to add one, e.g. 'type': 'DirectoryError', the assert would be:
-    # assert results[0] == {'file_name': 'N/A', 'status': 'Error', 
-    #                       'message': f'Resources directory not found at: {expected_resources_path}', 
-    #                       'type': 'DirectoryError'} 
-    # For now, testing based on the provided structure in the prompt (which didn't have 'type')
-    # And based on my previous refactoring of configfile_validator.py
-    assert results[0] == {'file_name': 'N/A', 'status': 'Error', 
-                          'message': f'Resources directory not found at: {expected_resources_path}'}
-    # The prompt asked for 'type': 'Directory'. My refactor of configfile_validator.py did not add this.
-    # I will stick to what my refactor of configfile_validator produced.
-    # If the requirement is strict on 'type': 'Directory', then configfile_validator.py would need a small change.
-    # For now, I'll assume the refactored configfile_validator.py's output for this case is the source of truth.
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

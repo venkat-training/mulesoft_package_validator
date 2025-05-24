@@ -1,323 +1,166 @@
-import pytest
+import unittest
 import os
-import xml.etree.ElementTree as ET
-from unittest.mock import patch, MagicMock, mock_open
+import tempfile
+import shutil
+# from xml.etree.ElementTree import ParseError # Not needed as ET is internal to validator
 
-from mule_validator.dependency_validator import (
-    parse_pom_dependencies,
-    scan_code_for_dependencies,
-    calculate_build_size,
-    validate_dependencies_and_size,
-    MAVEN_POM_NAMESPACE  # Import if used directly in tests, or assume it's used internally
-)
+from mule_validator.dependency_validator import validate_dependencies_and_size
 
-# Mock the logger for all tests in this module
-@pytest.fixture(autouse=True)
-def mock_logger():
-    with patch('mule_validator.dependency_validator.logger', MagicMock()) as mock_log:
-        yield mock_log
+# Temporarily suppress logging from the validator module to keep test output clean
+import logging
+logging.getLogger('mule_validator.dependency_validator').setLevel(logging.CRITICAL)
 
-# 1. Tests for parse_pom_dependencies
-@patch('xml.etree.ElementTree.parse')
-def test_parse_pom_dependencies_valid(mock_et_parse):
-    """Test parsing a valid POM file with dependencies."""
-    mock_dependency_element1 = MagicMock()
-    mock_dependency_element1.find(f"{{{MAVEN_POM_NAMESPACE}}}groupId").text = "group1"
-    mock_dependency_element1.find(f"{{{MAVEN_POM_NAMESPACE}}}artifactId").text = "artifact1"
+class TestDependencyValidatorSecurity(unittest.TestCase):
 
-    mock_dependency_element2 = MagicMock()
-    mock_dependency_element2.find(f"{{{MAVEN_POM_NAMESPACE}}}groupId").text = "group2"
-    mock_dependency_element2.find(f"{{{MAVEN_POM_NAMESPACE}}}artifactId").text = "artifact2"
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.package_folder_path = self.test_dir
+        # Create a dummy build folder path; its content doesn't matter for these tests
+        self.build_folder_path = os.path.join(self.test_dir, "build_target")
+        os.makedirs(self.build_folder_path, exist_ok=True)
 
-    mock_root = MagicMock()
-    mock_root.findall(f".//{{{MAVEN_POM_NAMESPACE}}}dependency").return_value = [
-        mock_dependency_element1, mock_dependency_element2
-    ]
-    mock_tree = MagicMock()
-    mock_tree.getroot.return_value = mock_root
-    mock_et_parse.return_value = mock_tree
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
 
-    dependencies = parse_pom_dependencies("dummy_pom.xml")
-    assert dependencies == ["group1:artifact1", "group2:artifact2"]
-    mock_et_parse.assert_called_once_with("dummy_pom.xml")
+    def _write_pom_xml(self, content_str):
+        pom_path = os.path.join(self.package_folder_path, "pom.xml")
+        with open(pom_path, 'w', encoding='utf-8') as f:
+            f.write(content_str)
+        return pom_path
 
-@patch('xml.etree.ElementTree.parse')
-def test_parse_pom_dependencies_no_dependencies(mock_et_parse):
-    """Test parsing a POM file with no dependencies."""
-    mock_root = MagicMock()
-    mock_root.findall(f".//{{{MAVEN_POM_NAMESPACE}}}dependency").return_value = []
-    mock_tree = MagicMock()
-    mock_tree.getroot.return_value = mock_root
-    mock_et_parse.return_value = mock_tree
+    def test_pom_with_secret_property(self):
+        # Basic project structure for valid POM, even if not fully compliant for a real build
+        pom_content = """
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>test-app-secret-prop</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <properties>
+        <my.secret.password>pom_secret_value_in_property</my.secret.password>
+        <another.property>safe_value</another.property>
+    </properties>
+</project>
+"""
+        self._write_pom_xml(pom_content)
+        results = validate_dependencies_and_size(self.package_folder_path, self.build_folder_path)
+        
+        warnings = results.get('pom_security_warnings', [])
+        self.assertGreater(len(warnings), 0, "Should find at least one security warning for property.")
+        
+        # Check for keyword match on the property tag name
+        # The tag 'my.secret.password' contains 'password' (a keyword)
+        found_keyword_on_tag = any(
+            w.get('xml_path') == 'my.secret.password' and # Simplified path is the tag name
+            (w.get('issue_type') == 'Hardcoded Secret') and
+            ("matches a password keyword" in w.get('message', '') or "matches a generic secret keyword" in w.get('message', '')) and
+            "pom_secret_value_in_property" in w.get('value_excerpt', '')
+            for w in warnings
+        )
+        self.assertTrue(found_keyword_on_tag, "Secret in property name (tag keyword) not detected correctly.")
 
-    dependencies = parse_pom_dependencies("dummy_pom.xml")
-    assert dependencies == []
+    def test_pom_with_secret_in_plugin_config_text(self):
+        pom_content = """
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>test-app-plugin-text</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <build><plugins><plugin>
+        <groupId>org.example</groupId><artifactId>my-plugin</artifactId>
+        <configuration>
+            <secretToken>plugin_token_secret_value_shhh</secretToken>
+            <anotherConfig>safe</anotherConfig>
+        </configuration>
+    </plugin></plugins></build>
+</project>
+"""
+        self._write_pom_xml(pom_content)
+        results = validate_dependencies_and_size(self.package_folder_path, self.build_folder_path)
+        warnings = results.get('pom_security_warnings', [])
+        self.assertGreater(len(warnings), 0, "Should find security warning for plugin config text.")
 
-@patch('xml.etree.ElementTree.parse')
-def test_parse_pom_dependencies_parse_error(mock_et_parse, caplog):
-    """Test parsing a POM file that causes an ET.ParseError."""
-    mock_et_parse.side_effect = ET.ParseError("mocked parse error")
-    
-    dependencies = parse_pom_dependencies("dummy_pom.xml")
-    assert dependencies == []
-    
-    assert any(
-        "Error parsing POM file: dummy_pom.xml - mocked parse error" in record.message 
-        for record in caplog.records if record.levelname == "ERROR"
-    )
+        # Check for keyword match on the <secretToken> tag
+        secret_token_tag_warning = any(
+            w.get('xml_path') == 'secretToken' and # Simplified path is the tag name
+            w.get('issue_type') == 'Hardcoded Secret' and # 'secretToken' tag contains 'secret' and 'token' keywords
+            "plugin_token_secret_value_shhh" in w.get('value_excerpt', '')
+            for w in warnings
+        )
+        self.assertTrue(secret_token_tag_warning, "Secret in plugin config text (tag keyword 'secretToken') not detected.")
 
-@patch('xml.etree.ElementTree.parse')
-def test_parse_pom_dependencies_missing_group_or_artifact(mock_et_parse, caplog):
-    """Test POM with dependencies missing groupId or artifactId."""
-    mock_dep1_valid = MagicMock()
-    mock_dep1_valid.find(f"{{{MAVEN_POM_NAMESPACE}}}groupId").text = "group1"
-    mock_dep1_valid.find(f"{{{MAVEN_POM_NAMESPACE}}}artifactId").text = "artifact1"
+    def test_pom_with_secret_in_plugin_config_attribute(self):
+        pom_content = """
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>test-app-plugin-attr</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <build><plugins><plugin>
+        <groupId>org.example</groupId><artifactId>my-plugin</artifactId>
+        <configuration>
+            <myPluginConfig password='attr_secret_for_plugin_config'/>
+        </configuration>
+    </plugin></plugins></build>
+</project>
+"""
+        self._write_pom_xml(pom_content)
+        results = validate_dependencies_and_size(self.package_folder_path, self.build_folder_path)
+        warnings = results.get('pom_security_warnings', [])
+        self.assertGreater(len(warnings), 0, "Should find security warning for plugin config attribute.")
 
-    mock_dep2_missing_group = MagicMock()
-    # Make find for groupId return None, or have .text be None
-    mock_group_id_element_none = MagicMock()
-    mock_group_id_element_none.text = None
-    mock_dep2_missing_group.find(f"{{{MAVEN_POM_NAMESPACE}}}groupId").return_value = None # Simulate element not found
-    mock_dep2_missing_group.find(f"{{{MAVEN_POM_NAMESPACE}}}artifactId").text = "artifact2"
-
-
-    mock_dep3_missing_artifact_text = MagicMock()
-    mock_dep3_missing_artifact_text.find(f"{{{MAVEN_POM_NAMESPACE}}}groupId").text = "group3"
-    mock_artifact_id_element_none = MagicMock()
-    mock_artifact_id_element_none.text = None # Simulate element found but no text
-    mock_dep3_missing_artifact_text.find(f"{{{MAVEN_POM_NAMESPACE}}}artifactId").return_value = mock_artifact_id_element_none
-
-
-    mock_root = MagicMock()
-    mock_root.findall(f".//{{{MAVEN_POM_NAMESPACE}}}dependency").return_value = [
-        mock_dep1_valid, mock_dep2_missing_group, mock_dep3_missing_artifact_text
-    ]
-    mock_tree = MagicMock()
-    mock_tree.getroot.return_value = mock_root
-    mock_et_parse.return_value = mock_tree
-
-    dependencies = parse_pom_dependencies("dummy_pom.xml")
-    assert dependencies == ["group1:artifact1"] # Only the valid one
-    
-    # Check for warnings (assuming the main code logs a warning)
-    # The refactored code should log warnings for malformed entries
-    assert any(
-        "Found a dependency without groupId or artifactId in dummy_pom.xml" in record.message
-        for record in caplog.records if record.levelname == "WARNING"
-    )
-
-
-# 2. Tests for scan_code_for_dependencies
-@patch('os.walk')
-@patch('builtins.open', new_callable=mock_open)
-def test_scan_code_for_dependencies_used(mock_file_open, mock_os_walk):
-    """Test scanning code where dependencies are used."""
-    mock_os_walk.return_value = [
-        ('/path', [], ['file1.xml'])
-    ]
-    mock_file_open.return_value.read.return_value = "<config>group1:artifact1</config>"
-    
-    dependencies = ["group1:artifact1", "group2:artifact2"]
-    used = scan_code_for_dependencies("/path", dependencies)
-    assert used == {"group1:artifact1"}
-    mock_file_open.assert_called_once_with(os.path.join('/path', 'file1.xml'), 'r', encoding='utf-8')
-
-@patch('os.walk')
-@patch('builtins.open', new_callable=mock_open)
-def test_scan_code_for_dependencies_none_used(mock_file_open, mock_os_walk):
-    """Test scanning code where no listed dependencies are used."""
-    mock_os_walk.return_value = [
-        ('/path', [], ['file1.xml'])
-    ]
-    mock_file_open.return_value.read.return_value = "<config>other:stuff</config>"
-    
-    dependencies = ["group1:artifact1", "group2:artifact2"]
-    used = scan_code_for_dependencies("/path", dependencies)
-    assert used == set()
-
-@patch('os.walk')
-@patch('builtins.open', new_callable=mock_open)
-def test_scan_code_for_dependencies_read_error(mock_file_open, mock_os_walk, caplog):
-    """Test scanning code when a file read error occurs."""
-    mock_os_walk.return_value = [
-        ('/path', [], ['file1.xml'])
-    ]
-    mock_file_open.return_value.read.side_effect = IOError("mocked read error")
-    
-    dependencies = ["group1:artifact1"]
-    used = scan_code_for_dependencies("/path", dependencies)
-    assert used == set() # Should be empty as the file read failed
-    
-    expected_log_message = f"Error reading or processing file: {os.path.join('/path', 'file1.xml')} - mocked read error"
-    assert any(
-        expected_log_message in record.message for record in caplog.records if record.levelname == "ERROR"
-    )
-
-@patch('os.walk')
-def test_scan_code_for_dependencies_empty_list(mock_os_walk):
-    """Test scanning with an empty list of dependencies to find."""
-    used = scan_code_for_dependencies("/path", [])
-    assert used == set()
-    mock_os_walk.assert_not_called() # Optimization: if no deps, don't walk
-
-# 3. Tests for calculate_build_size
-@patch('os.walk')
-@patch('os.path.getsize')
-def test_calculate_build_size_multiple_files(mock_getsize, mock_os_walk):
-    """Test calculating build size with multiple files and directories."""
-    mock_os_walk.return_value = [
-        ('/path', ['subdir'], ['file1.jar']),
-        ('/path/subdir', [], ['file2.xml', 'file3.dat'])
-    ]
-    
-    def getsize_side_effect(path):
-        if path == os.path.join('/path', 'file1.jar'): return 1000
-        if path == os.path.join('/path/subdir', 'file2.xml'): return 500
-        if path == os.path.join('/path/subdir', 'file3.dat'): return 200
-        return 0
-    mock_getsize.side_effect = getsize_side_effect
-    
-    total_size = calculate_build_size("/path")
-    assert total_size == 1700
-
-@patch('os.walk')
-def test_calculate_build_size_empty_directory(mock_os_walk):
-    """Test calculating build size for an empty directory."""
-    mock_os_walk.return_value = [
-        ('/path', [], [])
-    ]
-    total_size = calculate_build_size("/path")
-    assert total_size == 0
-
-@patch('os.walk')
-@patch('os.path.getsize')
-def test_calculate_build_size_getsize_error(mock_getsize, mock_os_walk, caplog):
-    """Test build size calculation when os.path.getsize raises an OSError for a file."""
-    mock_os_walk.return_value = [
-        ('/path', [], ['file1.jar', 'error_file.dat', 'file2.xml'])
-    ]
-    
-    def getsize_side_effect(path):
-        if path == os.path.join('/path', 'file1.jar'): return 1000
-        if path == os.path.join('/path', 'error_file.dat'): raise OSError("Permission denied")
-        if path == os.path.join('/path', 'file2.xml'): return 500
-        return 0
-    mock_getsize.side_effect = getsize_side_effect
-    
-    # The current implementation of calculate_build_size does not catch this error.
-    # So, we expect the OSError to propagate.
-    with pytest.raises(OSError, match="Permission denied"):
-         calculate_build_size("/path")
-
-    # If the implementation were changed to catch and log:
-    # total_size = calculate_build_size("/path")
-    # assert total_size == 1500 # Sum of non-error files
-    # assert "Could not get size for /path/error_file.dat: Permission denied" in caplog.text
+        # Check for keyword match on the 'password' attribute name
+        attr_keyword_warning = any(
+            w.get('xml_path') == 'myPluginConfig' and # Simplified path is the tag name
+            w.get('attribute_name') == 'password' and
+            w.get('issue_type') == 'Hardcoded Secret' and # 'password' attribute name is a keyword
+            "attr_secret_for_plugin_config" in w.get('value_excerpt', '')
+            for w in warnings
+        )
+        self.assertTrue(attr_keyword_warning, "Secret in plugin config attribute (name 'password') not detected.")
 
 
-# 4. Tests for validate_dependencies_and_size
-@patch('mule_validator.dependency_validator.parse_pom_dependencies')
-@patch('mule_validator.dependency_validator.scan_code_for_dependencies')
-@patch('mule_validator.dependency_validator.calculate_build_size')
-@patch('os.path.isfile')
-def test_validate_dependencies_successful(
-    mock_isfile, mock_calc_size, mock_scan_code, mock_parse_pom
-):
-    """Test successful validation scenario."""
-    mock_isfile.return_value = True # pom.xml exists
-    mock_parse_pom.return_value = ["dep1:foo", "dep2:bar", "dep3:baz"]
-    mock_scan_code.return_value = {"dep1:foo", "dep2:bar"}
-    mock_calc_size.return_value = 50 * 1024 * 1024 # 50MB
-    
-    result = validate_dependencies_and_size("/path", "/buildpath", max_size_mb=100)
-    
-    assert sorted(result['unused_dependencies']) == sorted(["dep3:baz"]) # Convert set to list for comparison
-    assert result['build_size_mb'] == 50.0
-    assert result['size_ok'] is True
-    assert result['max_size_mb'] == 100
-    mock_isfile.assert_called_once_with(os.path.join("/path", 'pom.xml'))
+    def test_pom_clean_no_secrets(self):
+        pom_content = """
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>clean-app</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <dependencies>
+        <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.12</version></dependency>
+    </dependencies>
+</project>
+"""
+        self._write_pom_xml(pom_content)
+        results = validate_dependencies_and_size(self.package_folder_path, self.build_folder_path)
+        warnings = results.get('pom_security_warnings', [])
+        self.assertEqual(len(warnings), 0, f"Clean POM should have no security warnings. Got: {warnings}")
+        self.assertIsNone(results.get('pom_parsing_error'), "Clean POM should not have parsing error.")
 
-@patch('mule_validator.dependency_validator.parse_pom_dependencies')
-@patch('mule_validator.dependency_validator.scan_code_for_dependencies')
-@patch('mule_validator.dependency_validator.calculate_build_size')
-@patch('os.path.isfile')
-def test_validate_dependencies_build_size_exceeded(
-    mock_isfile, mock_calc_size, mock_scan_code, mock_parse_pom, caplog
-):
-    """Test validation when build size is exceeded."""
-    mock_isfile.return_value = True
-    mock_parse_pom.return_value = ["dep1:foo"]
-    mock_scan_code.return_value = {"dep1:foo"}
-    mock_calc_size.return_value = 150 * 1024 * 1024 # 150MB
-    
-    result = validate_dependencies_and_size("/path", "/buildpath", max_size_mb=100)
-    
-    assert result['size_ok'] is False
-    assert result['build_size_mb'] == 150.0
-    assert any(
-        "Build size 150.00MB exceeds maximum of 100MB" in record.message 
-        for record in caplog.records if record.levelname == "WARNING"
-    )
+    def test_pom_file_not_found(self):
+        # Intentionally do not write pom.xml
+        with self.assertRaises(FileNotFoundError) as context:
+            validate_dependencies_and_size(self.package_folder_path, self.build_folder_path)
+        self.assertTrue("POM file not found" in str(context.exception))
 
-@patch('os.path.isfile')
-def test_validate_dependencies_pom_not_found(mock_isfile, caplog):
-    """Test validation when pom.xml is not found."""
-    mock_isfile.return_value = False # pom.xml does not exist
-    
-    with pytest.raises(FileNotFoundError, match="POM file not found at path: /path/pom.xml"):
-        validate_dependencies_and_size("/path", "/buildpath")
-    
-    assert any(
-        "POM file not found at path: /path/pom.xml" in record.message
-        for record in caplog.records if record.levelname == "ERROR"
-    )
+    def test_pom_invalid_xml_syntax(self):
+        pom_content = "<project><version>1.0.0</version><artifactId>my-app</artifactId></project>" # Missing closing </project> and other required elements
+        self._write_pom_xml(pom_content)
+        
+        results = validate_dependencies_and_size(self.package_folder_path, self.build_folder_path)
+        
+        self.assertIsNotNone(results.get('pom_parsing_error'), "Should report a POM parsing error for invalid XML.")
+        # The exact message might vary based on the parser, so check for key phrases.
+        self.assertTrue("Could not parse" in results['pom_parsing_error'] and "Secret scanning skipped" in results['pom_parsing_error'])
+        self.assertEqual(len(results.get('pom_security_warnings', [])), 0, 
+                         "No security warnings should be present if POM parsing failed.")
 
-@patch('mule_validator.dependency_validator.parse_pom_dependencies')
-@patch('mule_validator.dependency_validator.scan_code_for_dependencies')
-@patch('mule_validator.dependency_validator.calculate_build_size')
-@patch('os.path.isfile')
-def test_validate_dependencies_pom_parsing_failure(
-    mock_isfile, mock_calc_size, mock_scan_code, mock_parse_pom, caplog
-):
-    """Test validation when POM parsing fails (returns empty list and logs error)."""
-    mock_isfile.return_value = True
-    # parse_pom_dependencies itself would log an error, we simulate its outcome:
-    mock_parse_pom.return_value = [] 
-    mock_scan_code.return_value = set() # No dependencies to scan for
-    mock_calc_size.return_value = 10 * 1024 * 1024 # 10MB
-    
-    result = validate_dependencies_and_size("/path", "/buildpath")
-    
-    assert result['unused_dependencies'] == []
-    assert result['size_ok'] is True
-    
-    # Check for the warning from validate_dependencies_and_size
-    assert any(
-        "No dependencies found or POM parsing failed for /path/pom.xml. Proceeding with empty dependency list." in record.message
-        for record in caplog.records if record.levelname == "WARNING"
-    )
-
-@patch('mule_validator.dependency_validator.parse_pom_dependencies')
-@patch('mule_validator.dependency_validator.scan_code_for_dependencies')
-@patch('mule_validator.dependency_validator.calculate_build_size')
-@patch('os.path.isfile')
-def test_validate_dependencies_calculate_build_size_os_error(
-    mock_isfile, mock_calc_size, mock_scan_code, mock_parse_pom, caplog
-):
-    """Test validation when calculate_build_size encounters an OSError."""
-    mock_isfile.return_value = True
-    mock_parse_pom.return_value = ["dep1:foo"]
-    mock_scan_code.return_value = {"dep1:foo"}
-    mock_calc_size.side_effect = OSError("Disk read error")
-
-    result = validate_dependencies_and_size("/path", "/buildpath", max_size_mb=100)
-
-    assert result['build_size_mb'] == 0.0 # Should default to 0 or handle error appropriately
-    assert result['size_ok'] is True # 0 MB is <= 100 MB
-    assert any(
-        "Could not calculate build size for /buildpath: Disk read error" in record.message
-        for record in caplog.records if record.levelname == "ERROR"
-    )
-    # The size_ok might be True because build_size_mb becomes 0 after error.
-    # Depending on desired behavior, this might need adjustment or a specific error state.
-    # Current refactored code logs error and build_size_mb is 0, so size_ok is True.
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

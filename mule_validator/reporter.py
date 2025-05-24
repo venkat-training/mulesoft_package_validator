@@ -3,6 +3,15 @@ from tabulate import tabulate
 
 logger = logging.getLogger(__name__)
 
+def _print_security_warning(warning_type, file_path, location, issue, value_excerpt=None):
+    print(f"\n  [SECURITY WARNING] ({warning_type})")
+    print(f"    File: {file_path}")
+    if location:
+        print(f"    Location: {location}")
+    print(f"    Issue: {issue}")
+    if value_excerpt:
+        print(f"    Value Excerpt: \"{value_excerpt}\"")
+
 def generate_console_report(all_results):
     logger.info("Generating console report...")
     print("\n" + "="*80)
@@ -13,34 +22,59 @@ def generate_console_report(all_results):
         print("No validation results to report.")
         return
 
+    total_security_warnings = 0
+
     for validation_type, results in all_results.items():
         print(f"--- {validation_type.replace('_', ' ').upper()} ---")
         
         if validation_type == 'yaml_validation':
             if isinstance(results, list) and results:
                 # Check for the special case where the resources directory itself was not found
-                if results[0].get('file_name') == 'N/A' and results[0].get('status') == 'Error':
+                if results[0].get('file_name') == 'N/A' and results[0].get('status') == 'Error' and results[0].get('type') == 'Setup':
                     print(f"  ERROR: {results[0]['message']}")
                 else:
-                    mandatory_results = [item for item in results if item.get('type') == 'Mandatory']
-                    optional_results = [item for item in results if item.get('type') == 'Optional']
+                    # Separate findings: standard (Valid, Missing, InvalidSyntax) and security warnings
+                    standard_findings = []
+                    security_warnings = []
+                    for item in results:
+                        if item.get('status') == 'SecurityWarning':
+                            security_warnings.append(item)
+                            total_security_warnings +=1
+                        else:
+                            standard_findings.append(item)
+                    
+                    mandatory_results = [item for item in standard_findings if item.get('type') == 'Mandatory']
+                    optional_results = [item for item in standard_findings if item.get('type') == 'Optional']
 
                     if mandatory_results:
                         mandatory_data = [[item.get('file_name', 'N/A'), item.get('status', 'N/A'), item.get('message', '')] for item in mandatory_results]
-                        print("\n  Mandatory Configuration Files:")
+                        print("\n  Mandatory Configuration Files (Syntax & Presence):")
                         print(tabulate(mandatory_data, headers=["File Name", "Status", "Details"], tablefmt="grid"))
                     else:
-                        print("\n  No mandatory configuration files processed or found.")
+                        print("\n  No mandatory configuration files processed or found for standard checks.")
                     
                     if optional_results:
                         optional_data = [[item.get('file_name', 'N/A'), item.get('status', 'N/A'), item.get('message', '')] for item in optional_results]
-                        print("\n  Optional Configuration Files:")
+                        print("\n  Optional Configuration Files (Syntax & Presence):")
                         print(tabulate(optional_data, headers=["File Name", "Status", "Details"], tablefmt="grid"))
                     else:
-                        print("\n  No optional configuration files found or processed.")
-            elif not results:
-                 print("  No YAML validation data to report (e.g., no files found or processed).")
-            else: # Should not happen if validator returns a list
+                        print("\n  No optional configuration files found or processed for standard checks.")
+                    
+                    if security_warnings:
+                        print("\n  YAML Security Warnings:")
+                        for warning in security_warnings:
+                            details = warning.get('details', {})
+                            _print_security_warning(
+                                warning_type="YAML Secret",
+                                file_path=warning.get('file_name', 'N/A'),
+                                location=details.get('path', 'N/A'),
+                                issue=warning.get('message', 'No specific message.') \
+                                    .replace(f"Potential secret at path '{details.get('path', '')}'. Key: '{details.get('key', '')}'. Type: {details.get('issue_type', '')}. Description: ", ""), # Make message more concise
+                                value_excerpt=details.get('value_excerpt')
+                            )
+            elif not results: # Empty list means all files were valid and no secrets found
+                 print("  All YAML files processed are valid and no security warnings detected.")
+            else:
                 print(f"  Unexpected data format for YAML validation: {results}")
 
         elif validation_type == 'dependency_validation':
@@ -48,16 +82,17 @@ def generate_console_report(all_results):
                 build_size_mb = results.get('build_size_mb', 'N/A')
                 max_size_mb = results.get('max_size_mb', 'N/A')
                 size_ok = results.get('size_ok')
+                build_size_error = results.get('build_size_error')
 
                 size_status_text = 'Unknown'
-                if size_ok is True:
+                if build_size_error:
+                    size_status_text = f"Error ({build_size_error})"
+                elif size_ok is True:
                     size_status_text = 'OK'
                 elif size_ok is False:
                     size_status_text = 'Exceeded Limit'
                 
-                # Handle build_size_mb being 'N/A' or a number for formatting
                 build_size_display = f"{build_size_mb:.2f}" if isinstance(build_size_mb, (int, float)) else build_size_mb
-
                 print(f"  Build Size: {build_size_display} MB (Max Allowed: {max_size_mb} MB) - Status: {size_status_text}")
 
                 unused_deps = results.get('unused_dependencies')
@@ -66,11 +101,25 @@ def generate_console_report(all_results):
                     for dep in unused_deps:
                         print(f"    - {dep}")
                 else:
-                    # Check if this state is due to a POM parsing error implicitly
-                    if build_size_mb == 'N/A' and not unused_deps: # Heuristic for POM error
-                        print("  Could not determine unused dependencies (possible POM parsing error or no dependencies defined).")
-                    else:
-                        print("\n  No unused dependencies found.")
+                    if not results.get('pom_parsing_error'): # Only say no unused if POM was parsed ok
+                        print("\n  No unused dependencies found (or POM not parsed).")
+
+                pom_parsing_error = results.get('pom_parsing_error')
+                if pom_parsing_error:
+                    print(f"\n  POM Parsing Error: {pom_parsing_error}")
+
+                pom_security_warnings = results.get('pom_security_warnings', [])
+                if pom_security_warnings:
+                    print("\n  POM Security Warnings:")
+                    total_security_warnings += len(pom_security_warnings)
+                    for warning in pom_security_warnings:
+                        _print_security_warning(
+                            warning_type="POM Secret",
+                            file_path=warning.get('file_path', 'pom.xml'),
+                            location=f"Element: <{warning.get('xml_path', 'N/A')}>" + (f" / Attribute: {warning.get('attribute_name')}" if warning.get('attribute_name') else ""),
+                            issue=warning.get('message', 'No specific message.'),
+                            value_excerpt=warning.get('value_excerpt')
+                        )
             else:
                 print(f"  Unexpected data format for dependency validation: {results}")
 
@@ -89,7 +138,6 @@ def generate_console_report(all_results):
                 sub_flows_status = 'OK' if results.get('sub_flows_ok', True) else 'Exceeded'
                 components_status = 'OK' if results.get('components_ok', True) else 'Exceeded'
                 
-                # Handle FileNotFoundError from flow_validator
                 if results.get('total_counts') is None and results.get('message'):
                      print(f"  ERROR: {results.get('message')}")
                 else:
@@ -105,20 +153,12 @@ def generate_console_report(all_results):
         elif validation_type == 'api_validation':
             if isinstance(results, dict):
                 print(f"  API Specifications Found: {'Yes' if results.get('api_spec_found') else 'No'}")
-                if results.get('api_spec_found'):
-                    if results.get('api_spec_files'):
-                        for file_path in results.get('api_spec_files', []):
-                            print(f"    - {file_path}")
-                    else:
-                        print("    - No API spec files listed.")
+                if results.get('api_spec_found') and results.get('api_spec_files'):
+                    for file_path in results.get('api_spec_files', []): print(f"    - {file_path}")
                 
                 print(f"\n  API Definition Flows Found: {'Yes' if results.get('api_definition_flow_found') else 'No'}")
-                if results.get('api_definition_flow_found'):
-                    if results.get('api_definition_flows'):
-                        for file_path in results.get('api_definition_flows', []):
-                            print(f"    - {file_path}")
-                    else:
-                        print("    - No API definition flow files listed.")
+                if results.get('api_definition_flow_found') and results.get('api_definition_flows'):
+                    for file_path in results.get('api_definition_flows', []): print(f"    - {file_path}")
             else:
                 print(f"  Unexpected data format for API validation: {results}")
 
@@ -127,60 +167,69 @@ def generate_console_report(all_results):
                 if not results:
                     print("  No code review issues or file errors found.")
                 else:
-                    issues_by_file = {}
-                    file_errors = []
+                    standard_issues_by_file = {}
+                    security_warnings = []
+                    file_errors = [] # XMLSyntaxError, FileReadError, CheckFunctionError, GenericProcessingError
 
                     for item in results:
-                        file_path = item.get('file_path', 'Unknown File')
                         issue_type = item.get('type', 'UnknownType')
-                        message = item.get('message', 'No message provided.')
-
-                        if issue_type in ['XMLSyntaxError', 'FileReadError', 'CheckFunctionError']:
-                            file_errors.append({'file_path': file_path, 'type': issue_type, 'message': message})
-                        else: # Assumed to be 'CodeReviewIssue'
-                            if file_path not in issues_by_file:
-                                issues_by_file[file_path] = []
-                            issues_by_file[file_path].append(message)
+                        if issue_type in ['HardcodedSecretXML', 'SuspiciousValueXML', 'InsecurePropertyUseXML']:
+                            security_warnings.append(item)
+                            total_security_warnings += 1
+                        elif issue_type in ['XMLSyntaxError', 'FileReadError', 'CheckFunctionError', 'GenericProcessingError']:
+                            file_errors.append(item)
+                        else: # Assumed to be 'CodeReviewIssue' (standard, non-security)
+                            file_path = item.get('file_path', 'Unknown File')
+                            if file_path not in standard_issues_by_file:
+                                standard_issues_by_file[file_path] = []
+                            standard_issues_by_file[file_path].append(item.get('message', 'No message provided.'))
                     
                     if file_errors:
-                        print("\n  File Processing Errors:")
+                        print("\n  File Processing Errors (Code Review):")
                         for error_item in file_errors:
                              print(f"    File: {error_item['file_path']}")
                              print(f"      Error Type: {error_item['type']}")
                              print(f"      Message: {error_item['message']}")
                     
-                    if issues_by_file:
-                        print("\n  Code Review Issues by File:")
-                        for file_path, issues_list in issues_by_file.items():
+                    if standard_issues_by_file:
+                        print("\n  Standard Code Review Issues by File:")
+                        for file_path, issues_list in standard_issues_by_file.items():
                             print(f"    File: {file_path}")
                             for issue_msg in issues_list:
                                 print(f"      - {issue_msg}")
                     
-                    if not file_errors and not issues_by_file and results: # Should not happen if results has items
+                    if security_warnings:
+                        print("\n  XML Code Security Warnings:")
+                        for warning in security_warnings:
+                            location = f"Element: <{warning.get('xml_path', 'N/A')}>"
+                            if warning.get('attribute_name'):
+                                location += f" / Attribute: {warning.get('attribute_name')}"
+                            
+                            _print_security_warning(
+                                warning_type=warning.get('issue_type', 'XML Security Issue'),
+                                file_path=warning.get('file_path', 'N/A'),
+                                location=location,
+                                issue=warning.get('message', 'No specific message.'),
+                                value_excerpt=warning.get('value_excerpt')
+                            )
+                    
+                    if not file_errors and not standard_issues_by_file and not security_warnings and results:
                         print("  Processed files but no specific issues or errors captured in known format.")
-
             else:
                 print(f"  Unexpected data format for code reviewer: {results}")
         
-        # Fallback for other validation types or if the specific handlers don't cover all cases
-        elif isinstance(results, list):
-            if not results:
-                print("  No issues found or data to report for this section.")
-            else:
-                # Generic list printing if not YAML or other specific list type
-                for item in results: # This part should ideally not be hit if all types are handled
-                    if isinstance(item, dict): 
-                        print(f"  File: {item.get('file_path', 'N/A')} - Type: {item.get('type', 'N/A')} - Message: {item.get('message', 'N/A')}")
-                    else:
-                        print(f"  {item}")
-        elif isinstance(results, dict):
-            # Generic dict printing if not dependency or other specific dict type
-            for key, value in results.items():
-                print(f"  {key}: {value}")
-        else:
-            print(f"  {results}") # Basic print for any other data type
+        # Fallback for other validation types
+        elif isinstance(results, list) and not results:
+            print("  No issues found or data to report for this section.")
+        elif isinstance(results, dict) and not results: # Empty dict
+             print("  No data to report for this section.")
+        else: # Should not be hit if all types are handled explicitly or are empty
+            print(f"  Unhandled or non-empty results: {results}")
         print("\n")
 
     print("="*80)
+    if total_security_warnings > 0:
+        print(f"TOTAL SECURITY WARNINGS FOUND: {total_security_warnings}")
+        print("="*80)
     print("END OF REPORT")
     print("="*80 + "\n")
