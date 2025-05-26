@@ -1,0 +1,7 @@
+This is a dummy file inside the 'sample_build' directory.
+Its purpose is to ensure that the 'calculate_build_size' function,
+when called with 'tests/test_data/sample_build', returns a size greater than zero.
+This file needs to have some content for os.path.getsize() to report a non-zero size.
+Adding a bit more text to be sure.
+Hello, world! Testing build size calculation.
+This should be enough.
