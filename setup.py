@@ -5,11 +5,13 @@ setup(
     version="1.0.0",
     packages=find_packages(),
     install_requires=[
-        # List your package dependencies here
+        "lxml",
+        "PyYAML",
+        "tabulate",
     ],
     entry_points={
         'console_scripts': [
-            # Define command-line scripts here if needed
+            "mule-validator = mule_validator.main:main",
         ],
     },
 )
