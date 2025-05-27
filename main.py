@@ -14,6 +14,7 @@ from mule_validator.components_validator import validate_mule_package
 from mule_validator.api_validator import validate_api_spec_and_flows
 from mule_validator.configfile_validator import validate_files
 from tabulate import tabulate
+from mule_validator.html_reporter import generate_html_report
 
 
 def main():
@@ -46,6 +47,13 @@ def main():
         'package_folder_path',
         type=str,
         help='The path to the MuleSoft package folder to validate.'
+    )
+
+    # Add the optional report file argument
+    parser.add_argument(
+        '--report-file',
+        type=str,
+        help='Optional. The path to save the HTML validation report.'
     )
 
     # Parse the command-line arguments
@@ -118,6 +126,31 @@ def main():
     
     # Output the combined results dictionary. This can be consumed by other tools or scripts if needed.
     print("\nSummary of all validation results:", all_results)
+
+    # Generate HTML report if the --report-file argument is provided
+    if args.report_file:
+        try:
+            # Placeholder for reading the template file
+            # In a future step, this will be replaced with a call to a function in html_reporter.py
+            # that properly populates the template.
+            try:
+                with open('mule_validator/report_template.html', 'r') as f_template:
+                    template_content = f_template.read()
+                
+                # Generate the actual HTML content using the imported function
+                report_content = generate_html_report(all_results, template_content)
+                
+                with open(args.report_file, 'w') as f_report:
+                    f_report.write(report_content)
+                print(f"\nHTML report generated successfully at: {args.report_file}")
+            except FileNotFoundError:
+                print(f"\nError: HTML template file not found at mule_validator/report_template.html. Report not generated.")
+            except Exception as e:
+                print(f"\nError generating HTML report: {e}")
+
+        except Exception as e:
+            print(f"\nAn error occurred while trying to generate the HTML report: {e}")
+
 
 if __name__ == '__main__':
     # This ensures main() is called only when the script is executed directly.

@@ -7,6 +7,7 @@ This Python utility validates a MuleSoft package for dependency management, flow
 - **Dependency Validation**: Checks for unused dependencies and verifies build size against MuleSoft CloudHub deployment limits.
 - **Flow Validation**: Validates the number of flows, sub-flows, and components in the MuleSoft package.
 - **API Validation**: Ensures the presence of API specifications and API definition flows.
+- **HTML Report Generation**: Optionally generates a comprehensive HTML report of all validation results, providing a user-friendly and shareable format. The standard console output remains available.
 
 ## MuleSoft Secure Property Awareness
 
@@ -39,14 +40,38 @@ build_folder_path = '/path/to/build/folder'
 result = validate_dependencies_and_size(package_folder_path, build_folder_path)
 print(result)
 
-## setup main.py
-On Unix or macOS, you can run:
-export PYTHONPATH=.
-python main.py
+## Using `main.py` for Comprehensive Validation
 
-On Windows, you can run:
+The `main.py` script is the primary entry point to run all available validations on your MuleSoft package.
+
+**Basic Usage:**
+
+First, ensure your `PYTHONPATH` is set up correctly if you haven't installed the package:
+
+On Unix or macOS:
+```bash
+export PYTHONPATH=.
+python main.py /path/to/your/mulesoft/project
+```
+
+On Windows:
+```bash
 set PYTHONPATH=.
-python main.py
+python main.py C:\path\to\your\mulesoft\project
+```
+
+This will run all validations and print the results to the console.
+
+**Generating an HTML Report:**
+
+To generate an HTML report in addition to the console output, use the `--report-file` argument:
+
+```bash
+python main.py /path/to/your/mulesoft/project --report-file validation_report.html
+```
+This will execute all validations, print results to the console, and also save a detailed HTML report to `validation_report.html` in the current directory. The HTML report offers a more structured and user-friendly view of the validation outcomes, making it easier to share and review.
+
+**Installation for Easier Usage:**
 
 You can also install your project as an editable package using pip. This allows Python to recognize the package without adjusting PYTHONPATH.
 
