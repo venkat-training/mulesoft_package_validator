@@ -1,7 +1,16 @@
+"""
+This module provides functions to review MuleSoft XML configuration files for common
+issues, adherence to naming conventions, and checks for specific configurations
+like the use of Mule Secure Properties.
+"""
 import os
 from lxml import etree
 import re
-from tabulate import tabulate
+# tabulate is not used in this module directly anymore, but was part of the original file.
+# If other parts of the project rely on it being imported here, it could be kept,
+# otherwise, it's a candidate for removal from this specific file's imports.
+# For now, it's commented out as it's not used by functions in this module.
+# from tabulate import tabulate 
 
 def is_camel_case(name):
     """
@@ -11,6 +20,19 @@ def is_camel_case(name):
     :return: True if the name is in camel case format, otherwise False.
     """
     return re.match(r'^[a-z][a-zA-Z0-9]*$', name) is not None
+
+# Helper function to check for secure properties configuration
+def _contains_secure_properties_config(root, namespaces):
+    """
+    Checks if the XML configuration contains a Mule Secure Properties <secure-properties:config> element.
+    This indicates that the project is set up to use Mule's property encryption features.
+
+    :param root: The root element of the parsed XML (lxml.etree._Element).
+    :param namespaces: A dictionary of XML namespaces mapping prefixes to URIs.
+    :return: True if a <secure-properties:config> element is found, otherwise False.
+    """
+    # XPath search for the secure-properties:config element.
+    return root.find(".//secure-properties:config", namespaces=namespaces) is not None
 
 def check_flow_names(root, namespaces):
     """
@@ -266,11 +288,18 @@ def check_smtp(root, namespaces):
 
 def review_mulesoft_code(file_path):
     """
-    Reviews MuleSoft XML configuration file for common issues.
-    - Reads the XML file, parses it, and performs various checks based on MuleSoft standards.
+    Reviews a single MuleSoft XML configuration file for common issues and checks
+    if Mule Secure Properties configuration is present.
+
+    Reads the XML file, parses it, and performs various checks (e.g., flow names,
+    component configurations). Also detects the presence of a
+    <secure-properties:config> element.
 
     :param file_path: The path to the XML file to review.
-    :return: A list of issues found in the XML file.
+    :return: A tuple:
+             - issues (list): A list of issue description strings found in the XML file.
+             - uses_secure_config_in_file (bool): True if a <secure-properties:config>
+               element is found in this file, otherwise False.
     """
     try:
         # Read XML content from the file
@@ -295,7 +324,8 @@ def review_mulesoft_code(file_path):
             'smb': 'http://www.mulesoft.org/schema/mule/smb',
             'vm': 'http://www.mulesoft.org/schema/mule/vm',
             's3': 'http://www.mulesoft.org/schema/mule/s3',
-            'smtp': 'http://www.mulesoft.org/schema/mule/smtp'
+            'smtp': 'http://www.mulesoft.org/schema/mule/smtp',
+            'secure-properties': 'http://www.mulesoft.org/schema/mule/secure-properties'
         }
 
         # Perform checks
@@ -313,40 +343,73 @@ def review_mulesoft_code(file_path):
         issues.extend(check_smb(root, namespaces))
         issues.extend(check_vm(root, namespaces))
         issues.extend(check_s3(root, namespaces))
+        issues.extend(check_s3(root, namespaces))
         issues.extend(check_smtp(root, namespaces))
+
+        # Check for Mule Secure Properties configuration in this specific file
+        uses_secure_config_in_file = _contains_secure_properties_config(root, namespaces)
         
-        return issues
+        return issues, uses_secure_config_in_file
     except etree.XMLSyntaxError as e:
-        return [f"XML Syntax Error in file {file_path}: {str(e)}"]
+        # If XML syntax is invalid, we cannot parse it to check for secure properties.
+        # Return the syntax error and False for secure properties usage in this file.
+        return [f"XML Syntax Error in file {file_path}: {str(e)}"], False
     except Exception as e:
-        return [f"Error processing file {file_path}: {str(e)}"]
+        # For any other error during file processing, return the error and False.
+        return [f"Error processing file {file_path}: {str(e)}"], False
 
 def review_all_files(directory):
     """
-    Recursively reviews all XML files in the specified directory, ignoring files in 'target', 'test', and 'munit' folders.
-    - Calls review_mulesoft_code for each XML file and prints the results in a tabular format.
+    Recursively reviews all MuleSoft XML configuration files in a given directory.
+
+    It ignores files located in 'target', 'test', or 'munit' subfolders, and also
+    skips 'pom.xml' files. For each eligible XML file, it calls `review_mulesoft_code`
+    to gather issues and check for secure properties usage.
+
+    The function aggregates all issues found across the files and determines if
+    Mule Secure Properties configuration is used in at least one file within the project.
 
     :param directory: The root directory to start searching for XML files.
+    :return: A tuple:
+             - all_issues_data (list): A list of lists, where each inner list contains
+               [file_name, status_message, issue_description]. This format is
+               suitable for tabular display.
+             - project_uses_secure_properties (bool): True if any file in the project
+               contains Mule Secure Properties configuration, otherwise False.
     """
-    table = []
+    all_issues_data = []  # Stores [file_name, status, issue_description] for all files
+    project_uses_secure_properties = False  # Flag for overall project secure properties usage
+
     for root_dir, _, files in os.walk(directory):
-        # Skip processing files in 'target' or 'test' folders
+        # Standard Mule project folders to exclude from review
         if 'target' in root_dir or 'test' in root_dir:
-            continue
+            continue  # Skip these directories
+
         for file_name in files:
+            # Process only XML files, excluding pom.xml and MUnit test files
             if file_name.endswith('.xml') and file_name != 'pom.xml' and 'munit' not in file_name:
                 file_path = os.path.join(root_dir, file_name)
-                print(f"Reviewing file: {file_name}")
-                issues = review_mulesoft_code(file_path)
-                if issues:
-                    for issue in issues:
-                        table.append([file_name, "Issue Found", issue])
+                
+                # Optional: Print statement for CLI progress; can be removed for library use.
+                print(f"Reviewing file: {file_name}") 
+                
+                # Review individual file for issues and secure properties usage
+                issues_for_file, found_secure_config_in_this_file = review_mulesoft_code(file_path)
+                
+                # If secure properties config found in this file, mark it for the project
+                if found_secure_config_in_this_file:
+                    project_uses_secure_properties = True
+                
+                # Aggregate results for reporting
+                if issues_for_file:
+                    for issue in issues_for_file:
+                        all_issues_data.append([file_name, "Issue Found", issue])
                 else:
-                    table.append([file_name, "No Issues", ""])
+                    # Record that the file was checked and had no issues.
+                    # This maintains a consistent data structure for all_issues_data.
+                    all_issues_data.append([file_name, "No Issues", ""])
     
-    # Print results in a tabular format
-    print(tabulate(table, headers=["File Name", "Status", "Issue"], tablefmt="grid"))
-    #return tabulate(table, headers=["File Name", "Status", "Issue"], tablefmt="grid")
+    return all_issues_data, project_uses_secure_properties
 
 # Example usage
 #directory = 'c:/work/rnd/mulesoft-temp/sbs-ott-triggerintegrator'
