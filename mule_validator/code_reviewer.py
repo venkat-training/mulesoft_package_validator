@@ -69,7 +69,7 @@ SENSITIVE_MULE_ATTRIBUTES = {
     # This is broad, use with caution or make more specific if possible
     'anypoint-mq:config': ['clientId', 'clientSecret'],
     'amqp:config': ['password', 'saslPassword'],
-    'objectstore:config': ['spring:property_os_encryption_key':['value']], # if spring bean used for encryption key
+    'objectstore:config': ['spring:property_os_encryption_key', 'value'], # if spring bean used for encryption key
     # Add more based on common connectors and their typical configuration elements/attributes
 }
 
