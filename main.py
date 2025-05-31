@@ -10,7 +10,6 @@ import argparse
 from mule_validator.dependency_validator import validate_dependencies_and_size
 from mule_validator.flow_validator import validate_flows_in_package
 from mule_validator.code_reviewer import review_all_files
-from mule_validator.components_validator import validate_mule_package
 from mule_validator.api_validator import validate_api_spec_and_flows
 from mule_validator.configfile_validator import validate_files
 from tabulate import tabulate
@@ -105,13 +104,6 @@ def main():
 
     # Note: Code Review (previously step 5 in some orderings) results were processed earlier.
 
-    # Step 6: Validate general Mule Components structure
-    print("\nValidating Components...")
-    components_validator_results = validate_mule_package(package_folder_path)
-    print("Components Validation Results:", components_validator_results)
-
-    
-
     # Combine all validation results into a single dictionary for a comprehensive summary.
     print("\nAll validations completed.")
     all_results = {
@@ -120,8 +112,7 @@ def main():
         'flow_validation': flow_validation_results,  # Results from Mule flow structure checks
         'api_validation': api_validation_results,  # Results from API spec vs. flow implementation checks
         'code_reviewer_issues': issues_data_from_code_reviewer,  # List of issues from code review
-        'project_uses_secure_properties': project_uses_secure_properties,  # Boolean flag from code review
-        'components_validator': components_validator_results  # Results from general component structure checks
+        'project_uses_secure_properties': project_uses_secure_properties  # Boolean flag from code review
     }
     
     # Output the combined results dictionary. This can be consumed by other tools or scripts if needed.
