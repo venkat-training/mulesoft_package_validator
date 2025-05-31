@@ -99,11 +99,6 @@ def generate_html_report(all_results, template_string):
     else:
         html_content = html_content.replace('{{api_validation_results_table}}', "<p>No API validation data available or no issues found.</p>")
 
-    # 6. Components Validation Results
-    components_results = all_results.get('components_validator')
-    # `validate_mule_package` in `components_validator.py` returns a list of strings.
-    html_content = html_content.replace('{{components_validation_results_table}}', _format_data_to_html(components_results))
-
     # 7. Project Uses Mule Secure Properties
     secure_props_status = all_results.get('project_uses_secure_properties')
     html_content = html_content.replace('{{secure_properties_status}}', f"<p>{str(secure_props_status)}</p>")
@@ -114,7 +109,6 @@ def generate_html_report(all_results, template_string):
     html_content = html_content.replace('{{dependency_validation_results_table}}', "<p>Data not available.</p>")
     html_content = html_content.replace('{{flow_validation_results_table}}', "<p>Data not available.</p>")
     html_content = html_content.replace('{{api_validation_results_table}}', "<p>Data not available.</p>")
-    html_content = html_content.replace('{{components_validation_results_table}}', "<p>Data not available.</p>")
     html_content = html_content.replace('{{secure_properties_status}}', "<p>Data not available.</p>")
 
 
