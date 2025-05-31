@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mule Validation Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #e9e9e9;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .placeholder {
+            color: #aaa;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mule Validation Report</h1>
+
+        <h2>Code Review Issues</h2>
+        <div id="code-review-issues">
+            {{code_review_issues_table}}
+        </div>
+
+        <h2>YAML Validation Results</h2>
+        <div id="yaml-validation-results">
+            {{yaml_validation_results_table}}
+        </div>
+
+        <h2>Dependency Validation Results</h2>
+        <div id="dependency-validation-results">
+            {{dependency_validation_results_table}}
+        </div>
+
+        <h2>Flow Validation Results</h2>
+        <div id="flow-validation-results">
+            {{flow_validation_results_table}}
+        </div>
+
+        <h2>API Validation Results</h2>
+        <div id="api-validation-results">
+            {{api_validation_results_table}}
+        </div>
+
+        <h2>Components Validation Results</h2>
+        <div id="components-validation-results">
+            {{components_validation_results_table}}
+        </div>
+
+        <h2>Project Uses Mule Secure Properties</h2>
+        <div id="secure-properties-results">
+            {{secure_properties_status}}
+        </div>
+    </div>
+</body>
+</html>

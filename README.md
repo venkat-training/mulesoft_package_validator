@@ -1,154 +1,83 @@
-# Mule Package Validator (`mule-validator`)
+# Mule Package Validator
 
-## Overview
-
-`mule-validator` is a Python command-line interface (CLI) tool designed to validate MuleSoft projects. It checks your project against a set of best practices, configurable thresholds for code metrics, and common code conventions to help ensure quality and consistency.
+This Python utility validates a MuleSoft package for dependency management, flow/component count, and API specifications.
 
 ## Features
 
--   **Configuration Files**: Validates the presence and YAML syntax of standard configuration files (e.g., `config-prod.yaml`, `config-nonprod.yaml`) located in `src/main/resources`.
--   **Dependency Management**:
-    -   Scans your `pom.xml` to identify declared dependencies.
-    -   Checks for unused dependencies by looking for their usage within your Mule XML configuration files.
-    -   Validates the overall build artifact size against a configurable limit (default: 100MB).
--   **Flow & Component Counts**:
-    -   Counts the number of flows, sub-flows, and components within these flows in your Mule XML files (`src/main/mule`).
-    -   Validates these counts against configurable limits.
--   **API Specifications**:
-    -   Ensures the presence of API specification files (RAML, YAML, or JSON) in the `src/main/resources/api` directory.
--   **API Implementation**:
-    -   Checks for the presence of API implementation flows (conventionally named containing "api") within your Mule XML files in `src/main/mule`.
--   **Code Review**:
-    -   Performs static analysis on Mule XML configuration files found in `src/main/mule`.
-    -   Checks for common issues and adherence to naming conventions, such as:
-        -   Flow naming (camelCase, valid characters).
-        -   Presence of critical attributes in components like HTTP Listeners (`path`), Loggers (`message`), DataWeave transforms (`dw:set-payload`), Schedulers, and various connector configurations.
--   **Configurable Thresholds**: Many validation aspects, such as build size, flow counts, and component counts, can be customized using CLI arguments.
+- **Dependency Validation**: Checks for unused dependencies and verifies build size against MuleSoft CloudHub deployment limits.
+- **Flow Validation**: Validates the number of flows, sub-flows, and components in the MuleSoft package.
+- **API Validation**: Ensures the presence of API specifications and API definition flows.
+- **HTML Report Generation**: Optionally generates a comprehensive HTML report of all validation results, providing a user-friendly and shareable format. The standard console output remains available.
+
+## MuleSoft Secure Property Awareness
+
+The validator now includes features to intelligently handle MuleSoft's secure property configurations:
+
+-   **Automatic Detection:** The validator automatically detects if your MuleSoft project is configured to use MuleSoft's standard secure properties by looking for the `<secure-properties:config ... />` element in your Mule XML configuration files.
+-   **Smarter Validation:** When secure property usage is detected project-wide, the validator adjusts its behavior for certain checks in YAML configuration files to reduce false positives and provide more relevant feedback:
+    -   **Generic Secret Patterns:** If a property value is encrypted using the MuleSoft format (e.g., `my.secret: "![encryptedValue]"`), the validator will not flag the encrypted content as a potential leaked secret. Instead, it will issue an informational message acknowledging that the value is encrypted.
+    -   **Sensitive Keywords in Property Names:** If a property name contains sensitive keywords (like `password`, `apiKey`, `secret`, `token`), and its value is correctly encrypted in the `![...]` format, the validator will treat this appropriately, often issuing an informational message instead of a high-severity warning for plaintext exposure.
+-   **Example Informational Messages:** With this feature, you might see messages like:
+    -   `INFO: Key 'some.key.name' has Mule encrypted value. Length: XX.`
+    -   `INFO: Key 'db.password' (sensitive keyword) has Mule encrypted value.` (This specific message format might vary slightly based on the exact check that identifies it, but the intent is to inform about secured sensitive keys).
+-   **Benefit:** This enhancement makes the validator more accurate for projects that correctly implement MuleSoft's secure property mechanism. It helps distinguish between actual plaintext secrets and properly secured configurations, leading to more actionable validation results.
 
 ## Installation
 
-### Prerequisites
-
--   Python 3.6 or higher.
-
-### Steps
-
-1.  Clone this repository (if you haven't already) or ensure you have access to the project's root directory.
-2.  Navigate to the root directory of the `mule-validator` project.
-3.  Install the tool using pip:
-
-    ```bash
-    pip install .
-    ```
-
-    This will install the package and make the `mule-validator` command available in your environment.
-
-4.  For development purposes (e.g., if you are making changes to the validator itself), install it in editable mode:
-
-    ```bash
-    pip install -e .
-    ```
-
-## Usage
-
-Once installed, `mule-validator` can be run from your terminal.
-
-### Command-Line Interface
+Clone this repository and navigate to the project directory:
 
 ```bash
-mule-validator <package_folder_path> [options]
+git clone https://github.com/your-repo/mule_package_validator.git
+cd mule_package_validator
+
+## To use the utility in your CI/CD pipeline, simply import the necessary module and call the function
+
+from mule_validator.dependency_validator import validate_dependencies_and_size
+
+package_folder_path = '/path/to/mulesoft/package'
+build_folder_path = '/path/to/build/folder'
+
+result = validate_dependencies_and_size(package_folder_path, build_folder_path)
+print(result)
+
+## Using `main.py` for Comprehensive Validation
+
+The `main.py` script is the primary entry point to run all available validations on your MuleSoft package.
+
+**Basic Usage:**
+
+First, ensure your `PYTHONPATH` is set up correctly if you haven't installed the package:
+
+On Unix or macOS:
+```bash
+export PYTHONPATH=.
+python main.py /path/to/your/mulesoft/project
 ```
 
-### Arguments and Options
+On Windows:
+```bash
+set PYTHONPATH=.
+python main.py C:\path\to\your\mulesoft\project
+```
 
--   **`package_folder_path`**: (Positional, Mandatory)
-    -   The full path to the root directory of the MuleSoft project you want to validate.
+This will run all validations and print the results to the console.
 
--   **`--build-folder-path <path>`**: (Optional)
-    -   Path to the build folder (e.g., where the `target` directory containing the deployable archive is located).
-    -   This path is used for build size validation.
-    -   If not provided, it defaults to the `package_folder_path`.
+**Generating an HTML Report:**
 
--   **`--max-build-size-mb <size>`**: (Optional)
-    -   Maximum allowed build artifact size in Megabytes (MB).
-    -   *Default*: `100`
-
--   **`--max-flows <count>`**: (Optional)
-    -   Maximum allowed number of flows in the project.
-    -   *Default*: `100`
-
--   **`--max-sub-flows <count>`**: (Optional)
-    -   Maximum allowed number of sub-flows in the project.
-    -   *Default*: `50`
-
--   **`--max-components <count>`**: (Optional)
-    -   Maximum allowed number of components within flows and sub-flows.
-    -   *Default*: `500`
-
-### Example Command
+To generate an HTML report in addition to the console output, use the `--report-file` argument:
 
 ```bash
-mule-validator /path/to/your/mulesoft-project --max-flows 150 --build-folder-path /path/to/your/mulesoft-project/target
+python main.py /path/to/your/mulesoft/project --report-file validation_report.html
 ```
+This will execute all validations, print results to the console, and also save a detailed HTML report to `validation_report.html` in the current directory. The HTML report offers a more structured and user-friendly view of the validation outcomes, making it easier to share and review.
 
-## Output Interpretation
+**Installation for Easier Usage:**
 
-The `mule-validator` tool outputs a formatted report directly to the console. The report is divided into sections, each corresponding to a major validation category (e.g., YAML VALIDATION, DEPENDENCY VALIDATION, FLOW VALIDATION, etc.).
+You can also install your project as an editable package using pip. This allows Python to recognize the package without adjusting PYTHONPATH.
 
-Each section will:
--   Summarize the findings for that category.
--   List specific issues, errors, or details discovered during the validation. For example, missing mandatory configuration files, unused dependencies, flows exceeding component limits, or specific code review violations per file.
--   Use tables for structured data where appropriate (e.g., YAML file status, flow counts).
+Navigate to your project directory and run:
+pip install -e . --use-pep517
 
-Review the output carefully to identify areas in your MuleSoft project that may need attention.
+pip install -e .
 
-## Validations Performed (Detailed Summary)
-
--   **YAML Configuration Files (`configfile_validator`)**:
-    -   Checks the `src/main/resources/` directory.
-    -   **Mandatory**: `config-prod.yaml`, `config-nonprod.yaml`. Reports if missing or invalid YAML.
-    -   **Optional**: `config-dev.yaml`, `config-uat.yaml`, `config-local.yaml`. Reports if invalid YAML (if present).
-    -   Validates the YAML syntax of all found configuration files.
-
--   **Dependency Management (`dependency_validator`)**:
-    -   Parses `pom.xml` in the `package_folder_path` to extract declared dependencies.
-    -   Scans Mule XML files within the project for string occurrences of dependency `groupId`s and `artifactId`s to identify used dependencies.
-    -   Reports dependencies declared in `pom.xml` but not found in the code as "unused."
-    -   Calculates the total size of the directory specified by `build_folder_path` (or `package_folder_path` if not specified) and compares it against the `max_build_size_mb` limit.
-
--   **Flow & Component Counts (`flow_validator`)**:
-    -   Scans all Mule XML configuration files within the `src/main/mule/` directory.
-    -   Counts the total number of `<flow>` elements.
-    -   Counts the total number of `<sub-flow>` elements.
-    -   Counts the total number of message processors (components) within each flow and sub-flow.
-    -   Compares these counts against `max_flows`, `max_sub_flows`, and `max_components` limits.
-
--   **API Specifications (`api_validator`)**:
-    -   Checks for the presence of API specification files (extensions: `.raml`, `.yaml`, `.json`) within the `src/main/resources/api/` directory.
-    -   Reports if any specification files are found and lists them.
-
--   **API Implementation (`api_validator`)**:
-    -   Scans Mule XML files in `src/main/mule/`.
-    *   Identifies flows whose `name` attribute contains the substring "api" (case-insensitive) as potential API implementation flows.
-    -   Reports if any such flows are found and lists the files containing them.
-
--   **Code Review (`code_reviewer`)**:
-    -   Performs static analysis on Mule XML files in `src/main/mule/`.
-    -   Excludes `pom.xml`, files in `target/` or `test/` directories, and files with `munit` in their name.
-    -   Checks include, but are not limited to:
-        -   **Flow Naming**: Ensures flow names are in camelCase (e.g., `mySampleFlow`) and use only alphanumeric characters.
-        -   **HTTP Listener**: Path attribute should be defined.
-        -   **Logger**: Message attribute should be defined.
-        -   **DataWeave (Transform Message)**: Should contain a `<dw:set-payload>` element.
-        -   **HTTP Response Builder**: Should define a status code.
-        -   **Scheduler**: Critical attributes like frequency or cron expression should be present.
-        -   **Connector Configurations**: Checks for presence of `config-ref` where expected (e.g., for various connectors like FTP, SFTP, SMTP) or essential attributes like URL for HTTP Requesters.
-
-## Limitations
-
--   Dependency usage scanning is based on string matching of `artifactId` and `groupId` within XML files. This method is generally effective for common usage patterns but might not be 100% accurate in all complex scenarios or for dependencies used only in Java code or less common XML attributes.
--   Code review checks are based on a set of common conventions. These may need adjustment or may not perfectly align with all specific project guidelines or custom connector usage.
-
-## Contributing
-
-Contributions are welcome! Please refer to `CONTRIBUTING.md` (to be created) for guidelines on how to contribute, set up the development environment, run tests, and report issues.
+pip install --upgrade setuptools

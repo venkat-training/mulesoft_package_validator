@@ -1,253 +1,212 @@
+"""
+Validates MuleSoft YAML configuration files.
+
+This module checks for the presence of mandatory and optional YAML configuration
+files within a MuleSoft project's `src/main/resources` directory. It also
+validates the YAML syntax of these files and performs content-based checks
+to identify potential issues, such as plaintext secrets, especially considering
+whether the project utilizes Mule Secure Properties for encryption.
+"""
 import os
 import yaml
-import logging
 import re
-from mule_validator.security_patterns import (
-    PASSWORD_KEYWORDS,
-    COMMON_PASSWORD_PATTERNS,
-    GENERIC_SECRET_KEYWORDS,
-    GENERIC_SECRET_VALUE_PATTERNS
-)
-
-# Configure logging
-logger = logging.getLogger(__name__)
-
-# Define constants
-RESOURCES_PATH_NAME = "src/main/resources"
-MANDATORY_CONFIG_FILES = ['config-prod.yaml', 'config-nonprod.yaml']
-OPTIONAL_CONFIG_FILES = ['config-dev.yaml', 'config-uat.yaml', 'config-local.yaml']
-
-# Pre-compile regexes from security_patterns for efficiency
-COMPILED_COMMON_PASSWORD_PATTERNS = [re.compile(p, re.IGNORECASE) for p in COMMON_PASSWORD_PATTERNS]
-COMPILED_GENERIC_SECRET_VALUE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in GENERIC_SECRET_VALUE_PATTERNS]
-LOWERCASE_PASSWORD_KEYWORDS = [k.lower() for k in PASSWORD_KEYWORDS]
-LOWERCASE_GENERIC_SECRET_KEYWORDS = [k.lower() for k in GENERIC_SECRET_KEYWORDS]
-
-
-def find_secrets_in_yaml_data(data, current_path=""):
-    """
-    Recursively searches for hardcoded secrets in loaded YAML data.
-    """
-    issues = []
-    if isinstance(data, dict):
-        for key, value in data.items():
-            new_path = f"{current_path}.{key}" if current_path else key
-            key_lower = key.lower()
-
-            if isinstance(value, str):
-                # Check key keywords
-                if key_lower in LOWERCASE_PASSWORD_KEYWORDS:
-                    issues.append({
-                        'path': new_path, 'key': key, 'value_excerpt': value[:50] + ('...' if len(value) > 50 else ''),
-                        'issue_type': 'Hardcoded Secret', 'message': f"Key '{key}' matches a password keyword."
-                    })
-                elif key_lower in LOWERCASE_GENERIC_SECRET_KEYWORDS:
-                    issues.append({
-                        'path': new_path, 'key': key, 'value_excerpt': value[:50] + ('...' if len(value) > 50 else ''),
-                        'issue_type': 'Hardcoded Secret', 'message': f"Key '{key}' matches a generic secret keyword."
-                    })
-
-                # Check value patterns
-                for pattern_obj in COMPILED_COMMON_PASSWORD_PATTERNS:
-                    if pattern_obj.search(value):
-                        issues.append({
-                            'path': new_path, 'key': key, 'value_excerpt': value[:50] + ('...' if len(value) > 50 else ''),
-                            'issue_type': 'Suspicious Value', 'message': f"Value for key '{key}' matches common password pattern: {pattern_obj.pattern}"
-                        })
-                        # Do not break here, a value might match multiple patterns (e.g. keyword and value pattern)
-                for pattern_obj in COMPILED_GENERIC_SECRET_VALUE_PATTERNS:
-                    if pattern_obj.search(value):
-                        issues.append({
-                            'path': new_path, 'key': key, 'value_excerpt': value[:50] + ('...' if len(value) > 50 else ''),
-                            'issue_type': 'Suspicious Value', 'message': f"Value for key '{key}' matches generic secret pattern: {pattern_obj.pattern}"
-                        })
-                        # Do not break here
-            
-            if isinstance(value, (dict, list)):
-                issues.extend(find_secrets_in_yaml_data(value, new_path))
-    elif isinstance(data, list):
-        for index, item in enumerate(data):
-            new_path = f"{current_path}[{index}]"
-            if isinstance(item, str):
-                # Only check value patterns for strings in lists, as there's no key.
-                for pattern_obj in COMPILED_COMMON_PASSWORD_PATTERNS:
-                    if pattern_obj.search(item):
-                        issues.append({
-                            'path': new_path, 'key': f"list_item_{index}", 'value_excerpt': item[:50] + ('...' if len(item) > 50 else ''),
-                            'issue_type': 'Suspicious Value', 'message': f"List item at '{new_path}' matches common password pattern: {pattern_obj.pattern}"
-                        })
-                for pattern_obj in COMPILED_GENERIC_SECRET_VALUE_PATTERNS:
-                    if pattern_obj.search(item):
-                        issues.append({
-                            'path': new_path, 'key': f"list_item_{index}", 'value_excerpt': item[:50] + ('...' if len(item) > 50 else ''),
-                            'issue_type': 'Suspicious Value', 'message': f"List item at '{new_path}' matches generic secret pattern: {pattern_obj.pattern}"
-                        })
-            elif isinstance(item, (dict, list)):
-                issues.extend(find_secrets_in_yaml_data(item, new_path))
-    return issues
-
+# tabulate is not used in this module directly anymore.
+# It was likely used for printing results directly from this module before refactoring.
+# from tabulate import tabulate 
 
 def validate_yaml_file(file_path):
     """
-    Validates the YAML file at the given path for syntax and hardcoded secrets.
+    Validates the basic YAML syntax of a single file.
 
     Args:
-        file_path (str): The path to the YAML file to validate.
+        file_path (str): The path to the YAML file.
 
     Returns:
-        list: A list of dictionaries, where each dictionary contains validation
-              results (syntax errors or security warnings).
+        tuple: A tuple `(is_valid, error_message)`.
+               - `is_valid` (bool): True if the YAML syntax is valid, False otherwise.
+               - `error_message` (str or None): A string containing the YAML parsing
+                 error message if invalid, or None if valid.
     """
-    logger.debug(f"Validating YAML file: {file_path}")
-    results = []
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file: # Added encoding
+            yaml.safe_load(file)
+        return True, None
+    except yaml.YAMLError as exc:
+        return False, str(exc)
+
+# Regex for detecting long, random-looking strings that might be unencrypted secrets.
+# This pattern looks for strings of 32+ characters containing alphanumeric chars and common Base64 chars.
+GENERIC_SECRET_PATTERN = re.compile(r'[a-zA-Z0-9+/=]{32,}')
+
+# Keywords that often indicate a property key is for a sensitive value.
+SENSITIVE_KEYWORDS = ['password', 'secret', 'key', 'token', 'credentials', 'apikey']
+
+def check_yaml_content_rules(file_path, project_uses_secure_properties):
+    """
+    Checks the content of a given YAML file for potential plaintext secrets or
+    misconfigurations related to sensitive data.
+
+    It uses a recursive helper to traverse nested YAML structures. Rules include:
+    - Identifying Mule encrypted values (e.g., `![...]`).
+    - Detecting values that match a generic pattern for secrets.
+    - Checking keys containing sensitive keywords for plaintext values.
+
+    The severity of reported issues (INFO vs. WARNING) can depend on whether
+    the project is configured to use Mule Secure Properties.
+
+    Args:
+        file_path (str): The path to the YAML file to check.
+        project_uses_secure_properties (bool): True if the MuleSoft project is
+                                               configured to use secure properties.
+
+    Returns:
+        list: A list of issue description strings found in the YAML content.
+    """
+    issues = []
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             data = yaml.safe_load(file)
+    except Exception as e:
+        # If the file cannot be read or parsed, report this as a critical error for content validation.
+        issues.append(f"ERROR: Could not read or parse YAML file {file_path} for content validation: {e}")
+        return issues
+
+    if not data: # Handles empty or effectively empty (e.g., only comments) YAML files
+        return issues # No data to check, so no content issues.
+
+    def _find_issues_in_yaml_data(current_data, key_prefix=''):
+        """
+        Recursively traverses YAML data (dictionaries, lists, strings) to find issues.
         
-        if data is None: # Handles empty or effectively empty (e.g. just comments) YAML files
-            logger.debug(f"YAML file is empty or contains only comments: {file_path}")
-            # Optionally, add a specific result for empty files if needed for reporting
-            # results.append({'file_name': file_path, 'status': 'Empty', 'message': 'YAML file is empty or contains only comments.'})
-            return results # No further validation needed for empty files
+        Args:
+            current_data: The current piece of YAML data (dict, list, or scalar).
+            key_prefix (str): The prefix for the current key, used to build full key paths
+                              for reporting (e.g., "api.credentials.username.").
+        """
+        if isinstance(current_data, dict):
+            # If it's a dictionary, iterate through its key-value pairs.
+            for key, value in current_data.items():
+                _find_issues_in_yaml_data(value, key_prefix + str(key) + ".")
+        elif isinstance(current_data, list):
+            # If it's a list, iterate through its items.
+            for index, item in enumerate(current_data):
+                _find_issues_in_yaml_data(item, key_prefix + str(index) + ".")
+        elif isinstance(current_data, str):
+            # If it's a string, apply the content validation rules.
+            value_str = current_data
+            # Construct the full key name for reporting (e.g., "db.password").
+            current_full_key_name = key_prefix[:-1] if key_prefix.endswith('.') else key_prefix
+            if not current_full_key_name: # Handle cases where a top-level value is a simple string
+                 current_full_key_name = "UnnamedTopLevelValue"
 
-        logger.debug(f"YAML syntax is valid for: {file_path}. Checking for secrets...")
-        secret_issues = find_secrets_in_yaml_data(data)
-        for issue in secret_issues:
-            results.append({
-                'file_name': file_path,
-                'status': 'SecurityWarning',
-                'message': f"Potential secret at path '{issue['path']}'. Key: '{issue['key']}'. Type: {issue['issue_type']}. Description: {issue['message']}",
-                'details': issue
-            })
-        
-        if not results: # If no secrets found
-             logger.debug(f"No hardcoded secrets found in: {file_path}")
-             # No specific "Valid" message for secrets, absence of warnings implies validity in this context.
-             # If a general "valid" entry is desired even with no secrets, it can be added here.
 
-    except (IOError, OSError) as exc:
-        error_message = f"Error opening or reading file: {exc}"
-        logger.error(f"Error for file {file_path}: {error_message}")
-        results.append({'file_name': file_path, 'status': 'Error', 'message': error_message})
-    except yaml.YAMLError as exc:
-        error_message = f"Invalid YAML syntax: {exc}"
-        logger.error(f"Invalid YAML in file {file_path}: {error_message}")
-        results.append({'file_name': file_path, 'status': 'InvalidSyntax', 'message': error_message})
-    
-    return results
+            # Check if the value is Mule encrypted (starts with "![", ends with "]").
+            is_mule_encrypted = value_str.startswith("![") and value_str.endswith("]")
+            
+            # Check if the value matches a generic pattern for secrets (long, random-looking string).
+            is_potential_generic_secret = GENERIC_SECRET_PATTERN.match(value_str)
 
-def validate_files(package_folder_path):
+            if is_mule_encrypted:
+                # Value is Mule encrypted.
+                if project_uses_secure_properties:
+                    # This is expected and good practice if the project uses secure properties.
+                    issues.append(f"INFO: Key '{current_full_key_name}' has a Mule encrypted value. Length (encrypted part): {len(value_str[2:-1])}.")
+                else:
+                    # This is unusual: value is encrypted, but no secure properties config was found project-wide.
+                    # This might indicate a misconfiguration or an incomplete setup.
+                    issues.append(f"WARNING: Key '{current_full_key_name}' has a Mule encrypted value, but Mule Secure Properties configuration was not detected project-wide.")
+            elif is_potential_generic_secret:
+                # Value is not Mule encrypted but matches a pattern that suggests it might be a secret.
+                issues.append(f"WARNING: Value for key '{current_full_key_name}' appears to be a generic secret/API key and is not Mule encrypted. Value excerpt: '{value_str[:10]}...'")
+
+            # Keyword-based check for sensitive data (only if not already Mule encrypted).
+            # This avoids redundant warnings if a sensitive key is already properly encrypted.
+            if not is_mule_encrypted:
+                key_lower = current_full_key_name.lower()
+                for keyword in SENSITIVE_KEYWORDS:
+                    if keyword in key_lower:
+                        # The key name itself suggests sensitivity (e.g., "password", "api.key").
+                        if project_uses_secure_properties:
+                            # Project supports encryption, but this specific sensitive key has a plaintext value.
+                            issues.append(f"WARNING: Key '{current_full_key_name}' (contains sensitive keyword '{keyword}') has a plaintext value, but the project supports Mule encryption. Consider encrypting. Value excerpt: '{value_str[:10]}...'")
+                        else:
+                            # Project does not support encryption, and this sensitive key has a plaintext value. High risk.
+                            issues.append(f"WARNING: Key '{current_full_key_name}' (contains sensitive keyword '{keyword}') may contain plaintext sensitive data, and the project does not appear to use Mule encryption. Value excerpt: '{value_str[:10]}...'")
+                        break # Found one sensitive keyword match for this key, no need to check others.
+
+    _find_issues_in_yaml_data(data) # Start the recursive check from the root of the YAML data.
+    return issues
+
+def validate_files(package_folder_path, project_uses_secure_properties):
     """
-    Validates the presence and syntax of YAML property files, and checks for hardcoded secrets
-    in the src/main/resources directory of the given MuleSoft package folder path.
+    Validates YAML property files in a MuleSoft project's `src/main/resources` directory.
+
+    This function checks for:
+    1. Presence of mandatory files (`config-prod.yaml`, `config-nonprod.yaml`).
+    2. YAML syntax validity of all found configuration files.
+    3. Content rules violations (e.g., plaintext secrets) using `check_yaml_content_rules`.
 
     Args:
-        package_folder_path (str): The path to the MuleSoft package folder.
-
+        package_folder_path (str): The path to the root of the MuleSoft package.
+        project_uses_secure_properties (bool): A flag indicating whether the project
+                                               is configured to use Mule Secure Properties.
+                                               This affects how content rules are applied.
     Returns:
-        list: A list of dictionaries, where each dictionary contains the validation
-              result for a file (keys: 'file_name', 'status', 'message', 'type', 'details' [optional]).
+        list: A list of validation results. Each result is a list of three elements:
+              `[file_name, status, message]`.
+              - `file_name` (str): The name of the YAML file.
+              - `status` (str): Describes the validation status (e.g., 'Missing',
+                'Invalid Syntax', 'Valid Syntax', 'Content Issue').
+              - `message` (str): Detailed message about the issue or an empty string.
     """
-    logger.info(f"Starting configuration file validation for package: {package_folder_path}")
-    all_findings = []
+    # Define standard YAML configuration files in MuleSoft projects.
+    mandatory_files = ['config-prod.yaml', 'config-nonprod.yaml']
+    optional_files = ['config-dev.yaml', 'config-uat.yaml', 'config-local.yaml']
     
-    resources_folder_path = os.path.join(package_folder_path, RESOURCES_PATH_NAME)
-    logger.info(f"Checking for resources directory at: {resources_folder_path}")
+    # Construct the path to the standard resources directory.
+    resources_folder_path = os.path.join(package_folder_path, 'src', 'main', 'resources')
+    
+    results = [] # Initialize list to store all validation results.
 
+    # Check if the resources directory actually exists.
     if not os.path.isdir(resources_folder_path):
-        message = f"Resources directory not found at: {resources_folder_path}"
-        logger.error(message)
-        all_findings.append({'file_name': 'N/A', 'status': 'Error', 'message': message, 'type': 'Setup'})
-        return all_findings
-
-    # Validate mandatory files
-    logger.info(f"Validating mandatory files: {MANDATORY_CONFIG_FILES}")
-    for file_name in MANDATORY_CONFIG_FILES:
+        # If the resources directory is missing, report this and cannot proceed further.
+        results.append(['N/A', 'Directory Missing', f"Resources directory not found: {resources_folder_path}"])
+        return results 
+    
+    all_files_to_check = mandatory_files + optional_files # Combine all files for iteration.
+    
+    for file_name in all_files_to_check:
         file_path = os.path.join(resources_folder_path, file_name)
-        logger.debug(f"Checking mandatory file: {file_path}")
+        
         if os.path.isfile(file_path):
-            validation_results = validate_yaml_file(file_path)
-            if not validation_results: # No syntax errors, no secrets
-                 all_findings.append({'file_name': file_name, 'status': 'Valid', 'message': 'File is valid and no secrets detected.', 'type': 'Mandatory'})
+            # File exists, first validate its YAML syntax.
+            is_valid_syntax, syntax_error_message = validate_yaml_file(file_path)
+            
+            if not is_valid_syntax:
+                # If syntax is invalid, report it and do not proceed to content checks for this file.
+                results.append([file_name, 'Invalid Syntax', syntax_error_message])
             else:
-                for res in validation_results:
-                    # Add 'type' to each result dictionary before appending
-                    res_copy = res.copy()
-                    res_copy['type'] = 'Mandatory'
-                    all_findings.append(res_copy)
-        else:
-            logger.warning(f"Mandatory file missing: {file_path}")
-            all_findings.append({'file_name': file_name, 'status': 'Missing', 'message': 'File not found', 'type': 'Mandatory'})
+                # Syntax is valid. Record this and proceed to content rule checks.
+                results.append([file_name, 'Valid Syntax', '']) 
+                
+                content_issues = check_yaml_content_rules(file_path, project_uses_secure_properties)
+                # Append each content issue found as a separate entry in the results.
+                for issue_message in content_issues:
+                    results.append([file_name, 'Content Issue', issue_message])
+                        
+        elif file_name in mandatory_files:
+            # If a mandatory file is missing, report it.
+            results.append([file_name, 'Missing', 'Mandatory file not found'])
+            
+    return results # Return the aggregated list of all findings.
 
-    # Validate optional files
-    logger.info(f"Validating optional files: {OPTIONAL_CONFIG_FILES}")
-    for file_name in OPTIONAL_CONFIG_FILES:
-        file_path = os.path.join(resources_folder_path, file_name)
-        logger.debug(f"Checking optional file: {file_path}")
-        if os.path.isfile(file_path):
-            validation_results = validate_yaml_file(file_path)
-            if not validation_results: # No syntax errors, no secrets
-                 all_findings.append({'file_name': file_name, 'status': 'Valid', 'message': 'File is valid and no secrets detected.', 'type': 'Optional'})
-            else:
-                for res in validation_results:
-                    res_copy = res.copy()
-                    res_copy['type'] = 'Optional'
-                    all_findings.append(res_copy)
-        else:
-            logger.info(f"Optional file not found (this is not an error): {file_path}")
-            # Optionally, record their absence if needed for comprehensive reporting:
-            # all_findings.append({'file_name': file_name, 'status': 'Not Found', 'message': 'File not present', 'type': 'Optional'})
+# Example usage (typically called from main.py or a similar orchestrator script)
+# package_folder_path = 'path/to/your/mulesoft/project'
+#package_folder_path = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-mpx-mediamanagmentservices'
+#package_folder_path = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-tbs-ingestmediainfo'
+#package_folder_path = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-pnc-integrationservices'
+#package_folder_path = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-eis-integrationservices'
 
-    logger.info(f"Configuration file validation completed. Results: {len(all_findings)} findings.")
-    return all_findings
-
-# Example usage (can be removed or kept for testing)
-# if __name__ == '__main__':
-#     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#     # Create a dummy structure for testing
-#     DUMMY_PACKAGE_PATH = "test_mule_package"
-#     DUMMY_RESOURCES_PATH = os.path.join(DUMMY_PACKAGE_PATH, RESOURCES_PATH_NAME)
-#     os.makedirs(DUMMY_RESOURCES_PATH, exist_ok=True)
-
-#     # Create dummy config files
-#     with open(os.path.join(DUMMY_RESOURCES_PATH, "config-prod.yaml"), "w", encoding="utf-8") as f:
-#         yaml.dump({
-#             "database": {"url": "jdbc:mysql://prod_server/db", "user": "prod_user", "password": "ProdPassword123!"},
-#             "api_keys": {"google": "AIzaSy...", "service_secret": "super_secret_token_value"}
-#         }, f)
-    
-#     with open(os.path.join(DUMMY_RESOURCES_PATH, "config-nonprod.yaml"), "w", encoding="utf-8") as f:
-#         yaml.dump({"logging": {"level": "debug"}, "admin_pass": "admin"}, f) # Common weak password
-
-#     with open(os.path.join(DUMMY_RESOURCES_PATH, "config-dev.yaml"), "w", encoding="utf-8") as f:
-#         yaml.dump({"feature_flags": ["one", "two"], "developer_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"},f) # JWT like token
-
-#     with open(os.path.join(DUMMY_RESOURCES_PATH, "invalid-syntax.yaml"), "w", encoding="utf-8") as f: # Not in MANDATORY/OPTIONAL
-#         f.write("key: value\n  bad_indent: here")
-    
-#     # Add to OPTIONAL_CONFIG_FILES for testing this specific file if needed, or test validate_yaml_file directly
-#     # OPTIONAL_CONFIG_FILES.append("invalid-syntax.yaml") # Temporarily for testing via validate_files
-
-#     logger.info("--- Running validation via validate_files ---")
-#     validation_output = validate_files(DUMMY_PACKAGE_PATH)
-#     for item in validation_output:
-#         print(item)
-
-#     logger.info("\n--- Running direct validation for invalid-syntax.yaml ---")
-#     invalid_syntax_results = validate_yaml_file(os.path.join(DUMMY_RESOURCES_PATH, "invalid-syntax.yaml"))
-#     for item in invalid_syntax_results:
-#         print(item)
-    
-#     logger.info("\n--- Running direct validation for an empty file ---")
-#     EMPTY_FILE_PATH = os.path.join(DUMMY_RESOURCES_PATH, "empty.yaml")
-#     with open(EMPTY_FILE_PATH, "w", encoding="utf-8") as f:
-#         f.write("# This is an empty yaml file with only comments")
-#     empty_file_results = validate_yaml_file(EMPTY_FILE_PATH)
-#     if not empty_file_results:
-#         print(f"File '{EMPTY_FILE_PATH}' is considered valid and has no secrets.")
-#     for item in empty_file_results:
-#         print(item)
-
-    # Clean up dummy files and directory
-    # import shutil
-    # shutil.rmtree(DUMMY_PACKAGE_PATH)
+# Validate the files in the specified package folder
+#validate_files(package_folder_path)
