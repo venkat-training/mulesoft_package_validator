@@ -67,6 +67,9 @@ IGNORED_FLOW_NAMES = [
     "abc-xyz-integrationservices-console",
 ]
 
+# Define common HTTP verbs to ignore as prefixes in flow names (e.g., "get:", "post:").
+HTTP_VERBS = ["get", "post", "put", "delete", "patch", "head", "options", "trace"]
+
 # Define common mime types to handle
 COMMON_MIME_TYPES = [
     "text/csv", "text/plain", "text/xml", "text/html",
@@ -75,7 +78,14 @@ COMMON_MIME_TYPES = [
 ]
 
 def is_camel_case(s):
-    """Checks if a string is in camel case."""
+    """
+    Checks if a string is in camel case.
+    A leading backslash ('\') is removed before validation.
+    """
+    # Handle leading backslashes: if the string starts with '\', remove it.
+    if s and s.startswith('\\'):
+        s = s[1:]
+
     if not s:
         return True
     if "_" in s or "-" in s:
@@ -92,23 +102,68 @@ def is_camel_case(s):
 
 def validate_flow_name_camel_case(flow_name):
     """
-    Validates if a flow name follows specific camel case rules.
-    - Ignores specific flow names.
-    - Considers text before the first ':' for validation.
-    - Handles exceptions for flow names that are exactly a mime type string.
+    Validates if the core part of a flow name follows specific camel case rules.
+
+    The function first checks if the `flow_name` is in a list of globally ignored names.
+    If not, it processes the `flow_name` to extract the main part to be validated:
+    1. HTTP Verb Prefix Handling: If the name starts with a recognized HTTP verb
+       followed by a colon (e.g., "get:actualFlowName", "post:createOrder:config"),
+       the verb and colon are stripped.
+    2. Suffix Handling: If the name contains colons, the part after the first relevant
+       colon (if not part of a verb prefix) or second colon (if a verb prefix was present)
+       is considered a suffix and is stripped.
+       For example:
+       - "actualFlowName:some-config" -> "actualFlowName" is validated.
+       - "get:actualFlowName:some-config" -> "actualFlowName" is validated.
+       - "actualFlowName:config1:config2" -> "actualFlowName" is validated.
+    3. Quoted Names: If the extracted name part is enclosed in single or double quotes,
+       these quotes are removed.
+
+    The extracted and processed `name_to_validate` is then checked:
+    - If it matches any entry in `COMMON_MIME_TYPES`, it's considered valid.
+    - Otherwise, its camel case status is determined by `is_camel_case()`.
+
+    Args:
+        flow_name (str): The flow name to validate.
+
+    Returns:
+        bool: True if the flow name is considered valid according to the rules, False otherwise.
     """
     if flow_name in IGNORED_FLOW_NAMES:
-        return True
+        return True # Globally ignored names take precedence
 
     name_to_validate = flow_name
+    parts = flow_name.split(':')
 
-    # Rule: Only consider text (...) before the ":"
-    # Assuming this means if a colon exists, take the part before it.
-    if ':' in name_to_validate:
-        name_to_validate = name_to_validate.split(':', 1)[0]
+    # Extract the core part of the flow name, stripping known prefixes and suffixes.
+    if len(parts) == 1:
+        # No colons, the whole name is the part to validate.
+        name_to_validate = parts[0]
+    elif len(parts) == 2:
+        # Handles "verb:actualName" or "actualName:suffix".
+        if parts[0].lower() in HTTP_VERBS:
+            name_to_validate = parts[1]  # e.g., "get:actualName" -> "actualName"
+        else:
+            name_to_validate = parts[0]  # e.g., "actualName:some-config" -> "actualName"
+    elif len(parts) > 2:
+        # Handles "verb:actualName:suffix" or "actualName:suffix1:suffix2".
+        # Primary target: "verb:actualName:some-config".
+        if parts[0].lower() in HTTP_VERBS:
+            name_to_validate = parts[1] # e.g., "get:actualFlowName:some-config" -> "actualFlowName"
+        else:
+            # If not starting with a verb, and has multiple colons,
+            # assume the first part is the intended name, and the rest are suffixes.
+            # e.g. "actualFlowName:config1:config2" -> "actualFlowName"
+            name_to_validate = parts[0]
+    # else: flow_name was empty or malformed in a way that split gives 0 parts,
+    # in which case original flow_name (likely empty) is validated.
+
+    # Remove quotes if the extracted name_to_validate is enclosed in them.
+    # Example: flow_name = '"actualFlowName":config' -> name_to_validate becomes '"actualFlowName"' -> then "actualFlowName"
+
 
     # Rule: "text between the final """ - this implies quotes in the name.
-    # Let's assume it means if the name_to_validate (after colon split) is quoted, unquote it.
+    # Let's assume it means if the name_to_validate (after colon split and prefix/suffix stripping) is quoted, unquote it.
     # Example: flow_name = '"actualFlowName":config'
     # name_to_validate becomes '"actualFlowName"'
     if name_to_validate.startswith('"') and name_to_validate.endswith('"') and len(name_to_validate) > 1:

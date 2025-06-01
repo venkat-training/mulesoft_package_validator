@@ -151,6 +151,27 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
 
 # --- Start of new environment comparison logic ---
 
+# TARGET_CONFIG_KEYWORDS: Defines keywords used to identify configuration properties
+# that are expected to have environment-specific values. This list includes terms
+# commonly found in keys for hostnames, IP addresses, credentials (passwords, secrets, API keys),
+# instance identifiers, server names, user names, service URLs/URIs/endpoints, and ports.
+# The comparison logic in `compare_environment_config_values` uses these keywords to filter
+# which identical values across environments should be flagged as potential issues.
+# Matching is case-insensitive and checks if any segment of a dot-separated key path
+# contains one of these keywords.
+TARGET_CONFIG_KEYWORDS = [
+    'host', 'hostname', 'ip', 'ipaddress',
+    'password', 'secret', 'credential', 'apikey', 'token',
+    'instance', 'instanceid', 'instancename', 'server',
+    'user', 'username',
+    'url', 'uri', 'endpoint',
+    'port'
+]
+# Note: The effectiveness of this list depends on common naming conventions.
+# Keywords should be specific enough to target environment-sensitive properties
+# while avoiding overly generic terms (e.g., 'name', 'id' alone) that might
+# lead to false positives for properties that are legitimately common.
+
 def _get_common_keys_with_identical_values(data1, data2, prefix=""):
     """
     Recursively finds common keys in two data structures (dicts) that have identical scalar values.
@@ -180,17 +201,25 @@ def _get_common_keys_with_identical_values(data1, data2, prefix=""):
 def compare_environment_config_values(env_configs_data):
     """
     Compares configuration data between different environments (e.g., prod vs. nonprod)
-    to find keys with identical values.
+    to find keys that (a) have identical values and (b) are identified as
+    potentially environment-specific based on TARGET_CONFIG_KEYWORDS.
+
+    This helps identify configurations like hostnames, passwords, or specific instance URLs
+    that might have been copied between environment files without appropriate modification.
+    It aims to reduce false positives by not flagging all identical values, only those
+    associated with keywords suggesting they should be environment-specific.
 
     Args:
         env_configs_data (dict): A dictionary where keys are environment identifiers
                                  (e.g., "prod", "nonprod") and values are their
                                  parsed YAML data (dictionaries).
-                                 Example: {"prod": {...}, "nonprod": {...}}
+                                 Example: {"prod": {...prod_data...}, "nonprod": {...nonprod_data...}}
 
     Returns:
-        list: A list of issue strings describing keys with identical values
-              across compared environments.
+        list: A list of issue strings. Each string describes a key found to have
+              an identical value across the compared environments, where the key
+              is also deemed environment-specific by matching TARGET_CONFIG_KEYWORDS.
+              An empty list is returned if no such issues are found.
     """
     issues = []
 
@@ -210,12 +239,36 @@ def compare_environment_config_values(env_configs_data):
         if not env1_data or not env2_data: # Skip if one of the configs is empty/invalid
             continue
 
-        identical_keys = _get_common_keys_with_identical_values(env1_data, env2_data)
-        for key_path in identical_keys:
-            # It's an issue if values are identical.
+        identical_raw_keys = _get_common_keys_with_identical_values(env1_data, env2_data)
+
+        filtered_identical_keys = []
+        for key_path in identical_raw_keys:
+            # Check if the key_path is relevant based on TARGET_CONFIG_KEYWORDS
+            # Convert key_path to lowercase for case-insensitive matching
+            # Split key_path into segments to check each part against keywords
+            key_path_segments = key_path.lower().split('.')
+            is_relevant_key = False
+            for segment in key_path_segments:
+                for keyword in TARGET_CONFIG_KEYWORDS:
+                    # Check if the keyword is a substring of the segment OR if the segment is the keyword.
+                    # Example: 'host' in 'dbhost' or segment == 'host'.
+                    # More precise: check if segment equals keyword or contains keyword as a distinct word part.
+                    # For simplicity, substring check is often a good start.
+                    if keyword in segment: # keyword is substring of segment (e.g. 'host' in 'db.mainhost.url')
+                        is_relevant_key = True
+                        break
+                if is_relevant_key:
+                    break
+
+            if is_relevant_key:
+                filtered_identical_keys.append(key_path)
+
+        for key_path in filtered_identical_keys:
+            # It's an issue if values for these specific types of keys are identical.
             issue_message = (
-                f"WARNING: Key '{key_path}' has the same value in '{env1_name.upper()}' "
-                f"and '{env2_name.upper()}' configurations. Environment-specific values are expected."
+                f"WARNING: Key '{key_path}' (identified as potentially environment-specific) "
+                f"has the same value in '{env1_name.upper()}' and '{env2_name.upper()}' configurations. "
+                "These types of values should typically differ across environments."
             )
             issues.append(issue_message)
 

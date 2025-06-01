@@ -338,18 +338,113 @@ class TestEnvironmentConfigComparison(unittest.TestCase):
         # No common keys should be found as identical because their types differ at the common key level
         self.assertEqual(_get_common_keys_with_identical_values(data1, data2), [])
 
+    def test_compare_environment_config_values_detailed_scenarios(self):
+        """
+        Tests the compare_environment_config_values function with the new filtering logic
+        based on TARGET_CONFIG_KEYWORDS.
+        """
+        # TARGET_CONFIG_KEYWORDS from module:
+        # ['host', 'hostname', 'ip', 'ipaddress', 'password', 'secret', 'credential',
+        #  'apikey', 'token', 'instance', 'instanceid', 'instancename', 'server',
+        #  'user', 'username', 'url', 'uri', 'endpoint', 'port']
 
-    def test_compare_environment_config_values_prod_vs_nonprod(self):
-        prod_data = {"db": {"host": "prod_db", "port": 5432}, "api": {"key": "prod_key", "timeout": 30}, "common_setting": "same_value"}
-        nonprod_data = {"db": {"host": "nonprod_db", "port": 5432}, "api": {"key": "nonprod_key", "timeout": 30}, "common_setting": "same_value"}
+        test_scenarios = [
+            {
+                "name": "Scenario 1: Identical values for TARGET_CONFIG_KEYWORDS field",
+                "prod_data": {"db.host": "server1", "api.key": "secret123", "service.instanceid": "instanceA"},
+                "nonprod_data": {"db.host": "server1", "api.key": "secret123", "service.instanceid": "instanceA"},
+                "expected_warnings_containing": ["db.host", "api.key", "service.instanceid"],
+                "expected_warning_count": 3,
+            },
+            {
+                "name": "Scenario 2: Different values for TARGET_CONFIG_KEYWORDS field",
+                "prod_data": {"db.host": "prod_server", "user.password": "prod_pass"},
+                "nonprod_data": {"db.host": "dev_server", "user.password": "dev_pass"},
+                "expected_warnings_containing": [],
+                "expected_warning_count": 0,
+            },
+            {
+                "name": "Scenario 3: Identical values for non-TARGET_CONFIG_KEYWORDS field",
+                "prod_data": {"ui.theme": "dark", "feature.flag": True, "logging.level": "INFO"},
+                "nonprod_data": {"ui.theme": "dark", "feature.flag": True, "logging.level": "INFO"},
+                "expected_warnings_containing": [],
+                "expected_warning_count": 0,
+            },
+            {
+                "name": "Scenario 4: Mixed - some identical target, some identical non-target, some different target",
+                "prod_data": {"db.host": "common_server", "ui.color": "blue", "payment.endpoint.url": "http://prod.api"},
+                "nonprod_data": {"db.host": "common_server", "ui.color": "blue", "payment.endpoint.url": "http://dev.api"},
+                "expected_warnings_containing": ["db.host"],
+                "expected_warning_count": 1,
+            },
+            {
+                "name": "Scenario 5: Nested TARGET_CONFIG_KEYWORDS",
+                "prod_data": {"services": {"payment": {"host": "payment01", "timeout": 30}, "auth": {"internal.user.token": "tok1"}}},
+                "nonprod_data": {"services": {"payment": {"host": "payment01", "timeout": 60}, "auth": {"internal.user.token": "tok1"}}},
+                "expected_warnings_containing": ["services.payment.host", "services.auth.internal.user.token"],
+                "expected_warning_count": 2,
+            },
+            {
+                "name": "Scenario 6a: Keyword as part of a larger word (substring match)",
+                "prod_data": {"service.ghost.config": "value1", "main.serversettings.port": "8080"}, # "host" in "ghost", "port" in "port"
+                "nonprod_data": {"service.ghost.config": "value1", "main.serversettings.port": "8080"},
+                "expected_warnings_containing": ["service.ghost.config", "main.serversettings.port"],
+                "expected_warning_count": 2,
+            },
+            {
+                "name": "Scenario 6b: Keyword directly matches segment",
+                "prod_data": {"database.username": "user_prod", "api.endpoint": "ep1"}, # "username", "endpoint" are keywords
+                "nonprod_data": {"database.username": "user_prod", "api.endpoint": "ep1"},
+                "expected_warnings_containing": ["database.username", "api.endpoint"],
+                "expected_warning_count": 2,
+            },
+            {
+                "name": "Scenario 7: Case sensitivity of keywords in data keys (keys are lowercased by logic)",
+                "prod_data": {"DB.HOST": "server1", "API.Secret": "s1"},
+                "nonprod_data": {"DB.HOST": "server1", "API.Secret": "s1"},
+                "expected_warnings_containing": ["db.host", "api.secret"], # Paths in warnings are lowercased
+                "expected_warning_count": 2,
+            },
+            {
+                "name": "Scenario 8: Identical value for key that partially matches keyword but not specific enough",
+                "prod_data": {"hostel.room.number": "101"}, # "host" is in "hostel"
+                "nonprod_data": {"hostel.room.number": "101"},
+                "expected_warnings_containing": ["hostel.room.number"], # This will be flagged due to substring 'host' in 'hostel'
+                "expected_warning_count": 1,
+            },
+             {
+                "name": "Scenario 9: Non-target key with substring of target keyword",
+                "prod_data": {"app.settings.ghostbusters": "active"}, # "host" in "ghostbusters"
+                "nonprod_data": {"app.settings.ghostbusters": "active"},
+                "expected_warnings_containing": ["app.settings.ghostbusters"], # Flagged due to 'host'
+                "expected_warning_count": 1,
+            },
+            {
+                "name": "Scenario 10: Target key 'server' vs non-target 'preserve'",
+                "prod_data": {"main.server.name": "srv1", "data.preserve.settings": "on"},
+                "nonprod_data": {"main.server.name": "srv1", "data.preserve.settings": "on"},
+                "expected_warnings_containing": ["main.server.name"], # "server" is target, "preserve" is not (though contains "serv")
+                "expected_warning_count": 1, # Only main.server.name
+            }
+        ]
 
-        env_configs = {"prod": prod_data, "nonprod": nonprod_data}
-        issues = compare_environment_config_values(env_configs)
+        for scenario in test_scenarios:
+            with self.subTest(name=scenario["name"]):
+                env_configs = {"prod": scenario["prod_data"], "nonprod": scenario["nonprod_data"]}
+                issues = compare_environment_config_values(env_configs)
 
-        self.assertEqual(len(issues), 2) # db.port and common_setting and api.timeout
-        self.assertTrue(any("Key 'db.port' has the same value" in issue for issue in issues))
-        self.assertTrue(any("Key 'common_setting' has the same value" in issue for issue in issues))
-        self.assertTrue(any("Key 'api.timeout' has the same value" in issue for issue in issues))
+                self.assertEqual(len(issues), scenario["expected_warning_count"], f"Scenario '{scenario['name']}' failed: Expected {scenario['expected_warning_count']} warnings, got {len(issues)}. Issues: {issues}")
+
+                for expected_key_in_warning in scenario["expected_warnings_containing"]:
+                    found_warning_for_key = False
+                    for issue_msg in issues:
+                        # Example message: "WARNING: Key 'db.host' (identified as potentially environment-specific)..."
+                        self.assertTrue("WARNING: Key '" in issue_msg, f"Issue format error: {issue_msg}")
+                        self.assertTrue("(identified as potentially environment-specific)" in issue_msg,  f"Issue format error: {issue_msg}")
+                        if f"'{expected_key_in_warning}'" in issue_msg:
+                            found_warning_for_key = True
+                            break
+                    self.assertTrue(found_warning_for_key, f"Scenario '{scenario['name']}' failed: Expected warning containing key '{expected_key_in_warning}' not found. Issues: {issues}")
 
     def test_compare_environment_config_values_no_identical(self):
         prod_data = {"setting1": "prod_val"}
