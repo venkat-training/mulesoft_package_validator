@@ -5,9 +5,17 @@ This Python utility validates a MuleSoft package for dependency management, flow
 ## Features
 
 - **Dependency Validation**: Checks for unused dependencies and verifies build size against MuleSoft CloudHub deployment limits.
-- **Flow Validation**: Validates the number of flows, sub-flows, and components in the MuleSoft package.
+- **Flow Validation**:
+    - Validates the number of flows, sub-flows, and components in the MuleSoft package.
+    - Implements enhanced flow name validation, including camel case checks with configurable rules (e.g., ignoring specific flow names like "abc-xyz-integrationservices-main", considering only text between final `"` and before `:`, and handling embedded mime types like "text/csv").
+- **Configuration File Validation**:
+    - Checks YAML configuration files (e.g., `config-prod.yaml`, `config-nonprod.yaml`) to ensure that the same keys do not have identical values across different environment files, promoting environment-specific configurations.
+    - Ignores certain content warnings for YAML keys that clearly represent file names or paths (e.g., `empDbSnowflake.keyFile`), reducing false positives for rules like generic secret patterns or sensitive keyword detection in keys when the value is a path.
 - **API Validation**: Ensures the presence of API specifications and API definition flows.
-- **HTML Report Generation**: Optionally generates a comprehensive HTML report of all validation results, providing a user-friendly and shareable format. The standard console output remains available.
+- **HTML Report Generation**:
+    - Optionally generates a comprehensive HTML report of all validation results.
+    - The report now includes the Git branch name from which the validation was run, providing better context for the results.
+    - The standard console output remains available.
 
 ## MuleSoft Secure Property Awareness
 

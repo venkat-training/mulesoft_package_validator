@@ -102,48 +102,126 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
 
             # Check if the value is Mule encrypted (starts with "![", ends with "]").
             is_mule_encrypted = value_str.startswith("![") and value_str.endswith("]")
+
+            # Determine filename context
+            key_lower = current_full_key_name.lower()
+            is_key_suggestive_of_filename = any(suffix in key_lower for suffix in ['.filename', '.filepath', '.file', '.keyfile', '.certfile', '.configfile'])
+
+            value_lower = value_str.lower()
+            common_file_extensions = ('.jks', '.pem', '.cer', '.p12', '.keystore', '.properties', '.key', '.crt', '.yaml', '.yml', '.xml', '.json', '.txt')
+            is_value_like_filename_or_path = value_lower.endswith(common_file_extensions) or '/' in value_str or '\\' in value_str or value_str.startswith("classpath:")
             
-            # Check if the value matches a generic pattern for secrets (long, random-looking string).
-            is_potential_generic_secret = GENERIC_SECRET_PATTERN.match(value_str)
+            is_filename_context = is_key_suggestive_of_filename or is_value_like_filename_or_path
 
             if is_mule_encrypted:
                 # Value is Mule encrypted.
                 if project_uses_secure_properties:
                     # This is expected and good practice if the project uses secure properties.
-                    # issues.append(f"INFO: Key '{current_full_key_name}' has a Mule encrypted value. Length (encrypted part): {len(value_str[2:-1])}.")
                     pass # Suppressing INFO message as per request
                 else:
                     # This is unusual: value is encrypted, but no secure properties config was found project-wide.
-                    # This might indicate a misconfiguration or an incomplete setup.
                     issues.append(f"WARNING: Key '{current_full_key_name}' has a Mule encrypted value, but Mule Secure Properties configuration was not detected project-wide.")
-            elif is_potential_generic_secret:
-                # Value is not Mule encrypted but matches a pattern that suggests it might be a secret.
-                issues.append(f"WARNING: Value for key '{current_full_key_name}' appears to be a generic secret/API key and is not Mule encrypted. Value excerpt: '{value_str[:10]}...'")
+            else:
+                # Not Mule encrypted. Now check for other issues, considering filename context.
 
-            # Keyword-based check for sensitive data (only if not already Mule encrypted).
-            # This avoids redundant warnings if a sensitive key is already properly encrypted.
-            if not is_mule_encrypted:
-                # Add filename check here
-                value_lower = value_str.lower()
-                # Define common file extensions
-                file_extensions = ('.jks', '.pem', '.cer', '.p12', '.keystore', '.properties')
-                is_filename = value_lower.endswith(file_extensions)
+                # 1. Generic Secret Pattern Check
+                # Only apply if NOT in a filename context. Paths can sometimes look like generic secrets.
+                if not is_filename_context:
+                    is_potential_generic_secret = GENERIC_SECRET_PATTERN.match(value_str)
+                    if is_potential_generic_secret:
+                        issues.append(f"WARNING: Value for key '{current_full_key_name}' appears to be a generic secret/API key and is not Mule encrypted. Value excerpt: '{value_str[:10]}...'")
 
-                if not is_filename: # Only proceed if it's not identified as a filename
-                    key_lower = current_full_key_name.lower()
+                # 2. Sensitive Keyword Check
+                # Only apply if NOT in a filename context.
+                # If key is "db.keyFile" and value is "path/to/file.key", this check should be skipped.
+                # If key is "db.password" and value is "path/to/password.txt", this should also be skipped by is_filename_context.
+                # If key is "db.password" and value is "actualPassword", this should NOT be skipped.
+                if not is_filename_context:
                     for keyword in SENSITIVE_KEYWORDS:
                         if keyword in key_lower:
-                            # The key name itself suggests sensitivity (e.g., "password", "api.key").
+                            # The key name itself suggests sensitivity.
                             if project_uses_secure_properties:
-                                # Project supports encryption, but this specific sensitive key has a plaintext value.
                                 issues.append(f"WARNING: Key '{current_full_key_name}' (contains sensitive keyword '{keyword}') has a plaintext value, but the project supports Mule encryption. Consider encrypting. Value excerpt: '{value_str[:10]}...'")
                             else:
-                                # Project does not support encryption, and this sensitive key has a plaintext value. High risk.
                                 issues.append(f"WARNING: Key '{current_full_key_name}' (contains sensitive keyword '{keyword}') may contain plaintext sensitive data, and the project does not appear to use Mule encryption. Value excerpt: '{value_str[:10]}...'")
-                            break # Found one sensitive keyword match for this key, no need to check others.
+                            break # Found one sensitive keyword match for this key
 
     _find_issues_in_yaml_data(data) # Start the recursive check from the root of the YAML data.
     return issues
+
+# --- Start of new environment comparison logic ---
+
+def _get_common_keys_with_identical_values(data1, data2, prefix=""):
+    """
+    Recursively finds common keys in two data structures (dicts) that have identical scalar values.
+    """
+    identical_value_keys = []
+    if not isinstance(data1, dict) or not isinstance(data2, dict):
+        return identical_value_keys
+
+    for key, value1 in data1.items():
+        if key in data2:
+            value2 = data2[key]
+            current_key_path = f"{prefix}{key}"
+
+            if isinstance(value1, dict) and isinstance(value2, dict):
+                identical_value_keys.extend(
+                    _get_common_keys_with_identical_values(value1, value2, prefix=f"{current_key_path}.")
+                )
+            # Compare if they are not dicts (i.e., scalars or lists - direct comparison)
+            # We are interested if their direct values are the same.
+            # For lists, this means the lists themselves must be identical.
+            elif not isinstance(value1, dict) and not isinstance(value2, dict):
+                if value1 == value2:
+                    identical_value_keys.append(current_key_path)
+            # If types are mixed (e.g., dict vs scalar), they are not considered "identical" in this context.
+    return identical_value_keys
+
+def compare_environment_config_values(env_configs_data):
+    """
+    Compares configuration data between different environments (e.g., prod vs. nonprod)
+    to find keys with identical values.
+
+    Args:
+        env_configs_data (dict): A dictionary where keys are environment identifiers
+                                 (e.g., "prod", "nonprod") and values are their
+                                 parsed YAML data (dictionaries).
+                                 Example: {"prod": {...}, "nonprod": {...}}
+
+    Returns:
+        list: A list of issue strings describing keys with identical values
+              across compared environments.
+    """
+    issues = []
+
+    # Define pairs to compare. For now, focus on prod vs nonprod.
+    # This can be expanded later (e.g., prod vs dev, uat vs prod).
+    comparison_pairs = []
+    if "prod" in env_configs_data and "nonprod" in env_configs_data:
+        comparison_pairs.append(("prod", "nonprod"))
+    # Add more pairs as needed, e.g.:
+    # if "prod" in env_configs_data and "dev" in env_configs_data:
+    #     comparison_pairs.append(("prod", "dev"))
+
+    for env1_name, env2_name in comparison_pairs:
+        env1_data = env_configs_data[env1_name]
+        env2_data = env_configs_data[env2_name]
+
+        if not env1_data or not env2_data: # Skip if one of the configs is empty/invalid
+            continue
+
+        identical_keys = _get_common_keys_with_identical_values(env1_data, env2_data)
+        for key_path in identical_keys:
+            # It's an issue if values are identical.
+            issue_message = (
+                f"WARNING: Key '{key_path}' has the same value in '{env1_name.upper()}' "
+                f"and '{env2_name.upper()}' configurations. Environment-specific values are expected."
+            )
+            issues.append(issue_message)
+
+    return issues
+
+# --- End of new environment comparison logic ---
 
 def validate_files(package_folder_path, project_uses_secure_properties):
     """
@@ -180,12 +258,21 @@ def validate_files(package_folder_path, project_uses_secure_properties):
     if not os.path.isdir(resources_folder_path):
         # If the resources directory is missing, report this and cannot proceed further.
         results.append(['N/A', 'Directory Missing', f"Resources directory not found: {resources_folder_path}"])
-        return results 
+        return results
+
+    parsed_env_configs_data = {} # To store parsed data for environment comparison
     
     all_files_to_check = mandatory_files + optional_files # Combine all files for iteration.
     
     for file_name in all_files_to_check:
         file_path = os.path.join(resources_folder_path, file_name)
+        env_key_name = None # e.g. "prod" from "config-prod.yaml"
+
+        # Try to extract env key from filename (e.g., "prod" from "config-prod.yaml")
+        if file_name.startswith("config-") and file_name.endswith(".yaml"):
+            parts = file_name[len("config-"):-len(".yaml")]
+            if parts: # e.g. "prod", "nonprod", "dev"
+                env_key_name = parts
         
         if os.path.isfile(file_path):
             # File exists, first validate its YAML syntax.
@@ -198,14 +285,41 @@ def validate_files(package_folder_path, project_uses_secure_properties):
                 # Syntax is valid. Record this and proceed to content rule checks.
                 results.append([file_name, 'Valid Syntax', '']) 
                 
+                # Load YAML data for content checks and potential environment comparison
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f_env:
+                        current_yaml_data = yaml.safe_load(f_env)
+                    if env_key_name and current_yaml_data: # Store if data is not empty
+                        parsed_env_configs_data[env_key_name] = current_yaml_data
+                except Exception as e_load: # Catch potential errors during file read or parse for env comparison
+                    results.append([file_name, 'Content Issue', f"ERROR: Could not load/parse {file_name} for env comparison: {e_load}"])
+                    current_yaml_data = None # Ensure it's None if loading failed
+
+                # Perform individual content rule checks (check_yaml_content_rules re-opens and parses)
+                # This is slightly inefficient as we parse twice, but keeps check_yaml_content_rules self-contained.
                 content_issues = check_yaml_content_rules(file_path, project_uses_secure_properties)
-                # Append each content issue found as a separate entry in the results.
                 for issue_message in content_issues:
                     results.append([file_name, 'Content Issue', issue_message])
                         
         elif file_name in mandatory_files:
             # If a mandatory file is missing, report it.
             results.append([file_name, 'Missing', 'Mandatory file not found'])
+
+    # After checking all individual files, perform environment comparison
+    if parsed_env_configs_data:
+        env_comparison_issues = compare_environment_config_values(parsed_env_configs_data)
+        for issue_message in env_comparison_issues:
+            # Determine which files were involved for reporting (e.g. "Prod vs NonProd")
+            # This is a bit tricky as compare_environment_config_values doesn't directly tell us.
+            # We can infer from the issue message structure.
+            report_file_ref = "Environment Comparison" # Default
+            if "PROD" in issue_message and "NONPROD" in issue_message:
+                report_file_ref = "Prod vs NonProd Comparison"
+            elif "PROD" in issue_message and "DEV" in issue_message:
+                 report_file_ref = "Prod vs Dev Comparison"
+            # Add more specific refs if compare_environment_config_values is expanded
+
+            results.append([report_file_ref, 'Environment Config Value Issue', issue_message])
             
     return results # Return the aggregated list of all findings.
 

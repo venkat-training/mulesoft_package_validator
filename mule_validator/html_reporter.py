@@ -1,4 +1,18 @@
+import subprocess
 from tabulate import tabulate
+
+def get_current_git_branch():
+    """Tries to get the current Git branch name."""
+    try:
+        process_result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            capture_output=True, text=True, check=True, timeout=5
+        )
+        return process_result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+        # Log this error if logging is set up in this module, or handle silently
+        # print(f"Could not get Git branch name: {e}") # Optional: for debugging
+        return "Unknown"
 
 def _format_data_to_html(data, headers="firstrow"):
     """
@@ -110,6 +124,12 @@ def generate_html_report(all_results, template_string):
     html_content = html_content.replace('{{flow_validation_results_table}}', "<p>Data not available.</p>")
     html_content = html_content.replace('{{api_validation_results_table}}', "<p>Data not available.</p>")
     html_content = html_content.replace('{{secure_properties_status}}', "<p>Data not available.</p>")
+
+    # Add Git branch name
+    branch_name = get_current_git_branch()
+    html_content = html_content.replace('{{git_branch_name}}', branch_name)
+    # Fallback for branch name placeholder if not in template (though it should be)
+    html_content = html_content.replace('{{git_branch_name}}', "<p>Git branch: Unknown</p>")
 
 
     return html_content
