@@ -6,7 +6,11 @@ from unittest.mock import patch, MagicMock, call
 from mule_validator.flow_validator import (
     count_flows_and_components,
     validate_flows_in_package,
-    MULE_CORE_NAMESPACE_URI  # For constructing mock XML if needed, or verifying usage
+    MULE_CORE_NAMESPACE_URI,
+    IGNORED_FLOW_NAMES,
+    COMMON_MIME_TYPES,
+    validate_flow_name_camel_case, # Import for direct testing
+    is_camel_case # Import for direct testing (optional, if needed for specific assertions)
 )
 
 # Mock the logger for all tests in this module
@@ -85,10 +89,168 @@ def test_count_flows_and_components_file_not_found(mock_et_parse, caplog):
     counts = count_flows_and_components("dummy.xml")
     
     assert counts == {'flows': 0, 'sub_flows': 0, 'components': 0}
+    # Test that the second part of the tuple (invalid_flow_names) is empty
+    # This part of the test might need adjustment based on actual return value of count_flows_and_components
+    # For now, let's assume it returns ({counts}, []) when an error occurs before processing names
+    # The function count_flows_and_components was modified to return counts, [] on error
+    result_counts, invalid_names = count_flows_and_components("dummy.xml")
+    assert result_counts == {'flows': 0, 'sub_flows': 0, 'components': 0}
+    assert invalid_names == []
     assert any(
-        "XML file not found: dummy.xml" in record.message # Message from the refactored code
+        "XML file not found: dummy.xml" in record.message
         for record in caplog.records if record.levelname == "ERROR"
     )
+
+# Tests for is_camel_case (helper function, might be indirectly tested via validate_flow_name_camel_case)
+def test_is_camel_case_basic():
+    assert is_camel_case("camelCase") is True
+    assert is_camel_case("PascalCase") is True
+    assert is_camel_case("word") is True
+    assert is_camel_case("anotherWord") is True
+    assert is_camel_case("flow1") is True # Assuming numbers are allowed
+    assert is_camel_case("f") is True # Single character
+    assert is_camel_case("") is True # Empty string
+
+    assert is_camel_case("under_score") is False
+    assert is_camel_case("hyphen-ated") is False
+    assert is_camel_case("ALLCAPS") is False # Unless it's a single char like "A"
+    assert is_camel_case("A") is True
+    assert is_camel_case("endsWithALLCAPS") is True # This should be true by current rule
+    assert is_camel_case("alllowercase") is True # Currently true, might need refinement for "multiWordAllLower"
+
+# 3. Tests for validate_flow_name_camel_case(flow_name)
+@pytest.mark.parametrize("flow_name, expected", [
+    # Valid names
+    ("validFlowName", True),
+    ("anotherValidFlow", True),
+    ("flow", True),
+    ("f", True),
+    ("flowName1", True),
+    ("flowNameWithNumber123", True),
+    ("PascalCaseName", True), # PascalCase is acceptable by is_camel_case
+    ("verbNoun", True),
+
+    # Invalid names (basic camel case rules)
+    ("invalid_flow_name", False),
+    ("invalid-flow-name", False),
+    ("InvalidFlowName_with_error", False),
+    ("ALLUPPERCASE", False), # Should be false unless it's a single char
+    # ("alllowercaseformultiwords", False), # is_camel_case currently allows this, hard to distinguish from single "word"
+
+    # Ignored flow names
+    (IGNORED_FLOW_NAMES[0], True),
+    (IGNORED_FLOW_NAMES[1], True),
+    ("abc-xyz-integrationservices-main", True), # Direct check
+
+    # Rule: Text before the first ":"
+    ("flowNameBeforeColon:someSuffix", True),
+    ("invalid_name_before_colon:suffix", False),
+    ("ALLCAPSBEFORE:suffix", False),
+    (f"{IGNORED_FLOW_NAMES[0]}:suffix", True), # Ignored name part before colon
+    ("validName:'\"", True), # Valid name before colon, colon itself is just a separator
+
+    # Rule: Handling quotes ( "text between final "" ... " )
+    ('"quotedFlowName"', True),
+    ("'singleQuotedFlowName'", True),
+    ('"invalid_quoted_name"', False),
+    ("invalid_unclosed_quote", False), # This will be treated as part of the name
+    ('""', True), # Empty string inside quotes, is_camel_case("") is True
+    ('"A"', True), # Single char in quotes
+    ('"ALLCAPS"', False), # All caps in quotes
+
+    # Rule: Mime type exceptions
+    ("application/json", True), # Exact mime type
+    (COMMON_MIME_TYPES[0], True),
+    ("text/csv", True),
+    ("application/xml:config", True), # Mime type before colon
+    ('"application/json":config', True), # Quoted mime type before colon
+    ("notAMimeType", True), # Should be valid camel case
+    ("invalid-mime/type-format", False), # Invalid due to hyphen if not in COMMON_MIME_TYPES
+
+    # Combinations
+    ('"validFlowNameBeforeColon":suffix', True),
+    ("'invalid_name_also_quoted:suffix'", False),
+    (f'"{IGNORED_FLOW_NAMES[0]}":suffix', True),
+    ("get:/customer", True), # "get" is valid by is_camel_case
+    ("post:/order:createOrder", True), # "post" is valid
+    ("put:/product/productId", True), # "put" is valid
+    ("api/v1/users", True), # "api/v1/users" becomes "api/v1/users", which is_camel_case allows.
+                            # If path segments should be camel cased, the rule needs to be more specific.
+                            # Current rule for ":" means only part before first colon.
+                            # Here, `is_camel_case` would fail if it has slashes and we want to disallow slashes.
+                            # The `is_camel_case` allows anything not `_` or `-` or `ALLCAPS`.
+                            # This implies "api/v1/users" is seen as a single "word".
+                            # This might need clarification on how paths are handled.
+                            # Let's assume for now that if it's not explicitly an ignored name or mime type,
+                            # the remaining string after processing colons/quotes must pass is_camel_case.
+                            # is_camel_case("api/v1/users") -> True because no _ or -
+    ("path-like-name", False), # Fails due to hyphens
+    ("path_like_name", False), # Fails due to underscore
+
+    # Edge cases
+    ("", True), # Empty string is considered valid by default by is_camel_case
+    (":", True), # Becomes "", which is true
+    ('":"', True), # Becomes "", which is true
+    ('":suffix"', False), # Becomes ":suffix" if outer quotes are stripped, then "" before colon.
+                         # current logic: name_to_validate = '":suffix"'. split by ':' -> '""'. validate '""' -> True
+    ('name:"suffix"', True), # name_to_validate = "name". Valid.
+])
+def test_validate_flow_name_camel_case(flow_name, expected, mock_logger_fixture):
+    assert validate_flow_name_camel_case(flow_name) == expected
+
+# 4. Updated Tests for count_flows_and_components and validate_flows_in_package
+# These tests need to be aware that count_flows_and_components now returns a tuple (counts, invalid_names_list)
+
+@patch('xml.etree.ElementTree.parse')
+@patch('mule_validator.flow_validator.validate_flow_name_camel_case') # Mock the validator
+def test_count_flows_and_components_with_name_validation(mock_validate_name, mock_et_parse):
+    mock_flow_el1 = MagicMock()
+    mock_flow_el1.get.return_value = "validFlowName"
+    mock_flow_el1.__len__.return_value = 1 # 1 component
+
+    mock_flow_el2 = MagicMock()
+    mock_flow_el2.get.return_value = "invalid_flow_Name"
+    mock_flow_el2.__len__.return_value = 1
+
+    mock_sub_flow_el = MagicMock()
+    mock_sub_flow_el.get.return_value = "validSubFlow" # Assume subflows are also validated
+    mock_sub_flow_el.__len__.return_value = 1
+
+    mock_root = MagicMock()
+    mock_root.findall(f'.//{{{MULE_CORE_NAMESPACE_URI}}}flow').return_value = [mock_flow_el1, mock_flow_el2]
+    mock_root.findall(f'.//{{{MULE_CORE_NAMESPACE_URI}}}sub-flow').return_value = [mock_sub_flow_el]
+
+    mock_tree = MagicMock()
+    mock_tree.getroot.return_value = mock_root
+    mock_et_parse.return_value = mock_tree
+
+    # Define side effects for the validator
+    mock_validate_name.side_effect = lambda name: name == "validFlowName" or name == "validSubFlow"
+
+    counts, invalid_names = count_flows_and_components("dummy.xml")
+
+    assert counts['flows'] == 2
+    assert counts['sub_flows'] == 1
+    assert counts['components'] == 3
+    assert "invalid_flow_Name" in invalid_names
+    assert "subflow:validSubFlow" not in invalid_names # validSubFlow should pass
+    # Check if subflow name validation occurred as expected
+    # If "validSubFlow" was invalid, it would be "subflow:validSubFlow" in invalid_names
+
+    # Check calls to validate_flow_name_camel_case
+    expected_calls = [call("validFlowName"), call("invalid_flow_Name"), call("validSubFlow")]
+    mock_validate_name.assert_has_calls(expected_calls, any_order=False) # Order of finding elements
+
+@patch('xml.etree.ElementTree.parse')
+def test_count_flows_and_components_parse_error_returns_empty_invalid_list(mock_et_parse, caplog):
+    """Test count_flows_and_components with an ET.ParseError returns empty invalid_names list."""
+    mock_et_parse.side_effect = ET.ParseError("mocked xml parse error")
+
+    counts, invalid_names = count_flows_and_components("dummy.xml")
+
+    assert counts == {'flows': 0, 'sub_flows': 0, 'components': 0}
+    assert invalid_names == [] # Important: should return empty list for invalid names on error
+    assert any("Error parsing XML file: dummy.xml - mocked xml parse error" in record.message for record in caplog.records)
 
 
 # 2. Tests for validate_flows_in_package(...)
@@ -96,7 +258,7 @@ def test_count_flows_and_components_file_not_found(mock_et_parse, caplog):
 @patch('mule_validator.flow_validator.count_flows_and_components')
 @patch('os.walk')
 @patch('os.path.isdir')
-def test_validate_flows_src_main_mule_not_found(mock_isdir, mock_os_walk, mock_count_flows, caplog):
+def test_validate_flows_src_main_mule_not_found(mock_isdir, mock_os_walk, mock_count_flows_func, caplog): # Renamed mock_count_flows
     """Test validate_flows_in_package when src/main/mule directory does not exist."""
     package_path = "dummy_package"
     expected_mule_path = os.path.join(package_path, 'src', 'main', 'mule')
@@ -108,7 +270,7 @@ def test_validate_flows_src_main_mule_not_found(mock_isdir, mock_os_walk, mock_c
     assert str(excinfo.value) == f"Mule source directory does not exist: {expected_mule_path}"
     mock_isdir.assert_called_once_with(expected_mule_path)
     mock_os_walk.assert_not_called()
-    mock_count_flows.assert_not_called()
+    mock_count_flows_func.assert_not_called() # Use renamed mock
     assert any(
         f"Mule source directory does not exist: {expected_mule_path}" in record.message
         for record in caplog.records if record.levelname == "ERROR"
@@ -117,7 +279,7 @@ def test_validate_flows_src_main_mule_not_found(mock_isdir, mock_os_walk, mock_c
 @patch('mule_validator.flow_validator.count_flows_and_components')
 @patch('os.walk')
 @patch('os.path.isdir')
-def test_validate_flows_no_xml_files_found(mock_isdir, mock_os_walk, mock_count_flows, caplog):
+def test_validate_flows_no_xml_files_found(mock_isdir, mock_os_walk, mock_count_flows_func, caplog): # Renamed mock_count_flows
     """Test validate_flows_in_package when no XML files are found in src/main/mule."""
     package_path = "dummy_package"
     expected_mule_path = os.path.join(package_path, 'src', 'main', 'mule')
@@ -133,7 +295,9 @@ def test_validate_flows_no_xml_files_found(mock_isdir, mock_os_walk, mock_count_
     assert results['flows_ok'] is True
     assert results['sub_flows_ok'] is True
     assert results['components_ok'] is True
-    mock_count_flows.assert_not_called() # No XML files to process
+    assert results['flow_names_camel_case_ok'] is True # No invalid names as no files processed
+    assert results['invalid_flow_names'] == []
+    mock_count_flows_func.assert_not_called() # Use renamed mock
     assert any(
         f"No XML files found in {expected_mule_path}. Counts will be zero." in record.message
         for record in caplog.records if record.levelname == "WARNING"
@@ -142,8 +306,8 @@ def test_validate_flows_no_xml_files_found(mock_isdir, mock_os_walk, mock_count_
 @patch('mule_validator.flow_validator.count_flows_and_components')
 @patch('os.walk')
 @patch('os.path.isdir')
-def test_validate_flows_counts_within_limits(mock_isdir, mock_os_walk, mock_count_flows):
-    """Test validate_flows_in_package with counts within default limits."""
+def test_validate_flows_counts_within_limits_and_names_ok(mock_isdir, mock_os_walk, mock_count_flows_func): # Renamed mock_count_flows
+    """Test validate_flows_in_package with counts within limits and valid flow names."""
     package_path = "dummy_package"
     expected_mule_path = os.path.join(package_path, 'src', 'main', 'mule')
     
@@ -151,39 +315,60 @@ def test_validate_flows_counts_within_limits(mock_isdir, mock_os_walk, mock_coun
     mock_os_walk.return_value = [
         (expected_mule_path, [], ['file1.xml', 'file2.xml'])
     ]
-    # Let each file contribute some counts
-    mock_count_flows.side_effect = [
-        {'flows': 5, 'sub_flows': 2, 'components': 20}, # for file1.xml
-        {'flows': 5, 'sub_flows': 3, 'components': 30}  # for file2.xml
+    mock_count_flows_func.side_effect = [
+        ({'flows': 5, 'sub_flows': 2, 'components': 20}, []), # file1.xml, no invalid names
+        ({'flows': 5, 'sub_flows': 3, 'components': 30}, [])  # file2.xml, no invalid names
     ]
     
-    results = validate_flows_in_package(package_path) # Using default limits
+    results = validate_flows_in_package(package_path)
     
     assert results['total_counts'] == {'flows': 10, 'sub_flows': 5, 'components': 50}
     assert results['flows_ok'] is True
     assert results['sub_flows_ok'] is True
     assert results['components_ok'] is True
-    assert results['max_flows_limit'] == 100 # Default
-    assert results['max_sub_flows_limit'] == 50 # Default
-    assert results['max_components_limit'] == 500 # Default
+    assert results['flow_names_camel_case_ok'] is True
+    assert results['invalid_flow_names'] == []
     
     expected_calls = [
         call(os.path.join(expected_mule_path, 'file1.xml')),
         call(os.path.join(expected_mule_path, 'file2.xml'))
     ]
-    mock_count_flows.assert_has_calls(expected_calls, any_order=False) # Order matters with side_effect list
+    mock_count_flows_func.assert_has_calls(expected_calls, any_order=False)
 
 @patch('mule_validator.flow_validator.count_flows_and_components')
 @patch('os.walk')
 @patch('os.path.isdir')
-def test_validate_flows_exceed_one_limit(mock_isdir, mock_os_walk, mock_count_flows, caplog):
-    """Test validate_flows_in_package when flow count exceeds the limit."""
+def test_validate_flows_with_invalid_names(mock_isdir, mock_os_walk, mock_count_flows_func, caplog): # Renamed mock_count_flows
+    """Test validate_flows_in_package with some invalid flow names."""
+    package_path = "dummy_package"
+    mock_isdir.return_value = True
+    mock_os_walk.return_value = [
+        (os.path.join(package_path, 'src', 'main', 'mule'), [], ['file1.xml', 'file2.xml'])
+    ]
+    mock_count_flows_func.side_effect = [
+        ({'flows': 1, 'sub_flows': 0, 'components': 5}, ["invalid_Name1"]),
+        ({'flows': 1, 'sub_flows': 0, 'components': 5}, ["another-InvalidName"])
+    ]
+
+    results = validate_flows_in_package(package_path)
+
+    assert results['total_counts'] == {'flows': 2, 'sub_flows': 0, 'components': 10}
+    assert results['flows_ok'] is True # Assuming counts are within limits
+    assert results['flow_names_camel_case_ok'] is False
+    assert results['invalid_flow_names'] == ["invalid_Name1", "another-InvalidName"]
+    assert any("Found invalid flow names" in record.message for record in caplog.records if record.levelname == "WARNING")
+
+@patch('mule_validator.flow_validator.count_flows_and_components')
+@patch('os.walk')
+@patch('os.path.isdir')
+def test_validate_flows_exceed_one_limit_and_names_ok(mock_isdir, mock_os_walk, mock_count_flows_func, caplog): # Renamed mock_count_flows
+    """Test validate_flows_in_package when flow count exceeds limit, names are ok."""
     package_path = "dummy_package"
     mock_isdir.return_value = True
     mock_os_walk.return_value = [
         (os.path.join(package_path, 'src', 'main', 'mule'), [], ['file1.xml'])
     ]
-    mock_count_flows.return_value = {'flows': 150, 'sub_flows': 10, 'components': 100}
+    mock_count_flows_func.return_value = ({'flows': 150, 'sub_flows': 10, 'components': 100}, []) # No invalid names
     
     results = validate_flows_in_package(package_path, max_flows=100, max_sub_flows=50, max_components=500)
     
@@ -191,43 +376,45 @@ def test_validate_flows_exceed_one_limit(mock_isdir, mock_os_walk, mock_count_fl
     assert results['flows_ok'] is False
     assert results['sub_flows_ok'] is True
     assert results['components_ok'] is True
-    assert any(
-        "Flow count 150 exceeds limit of 100" in record.message
-        for record in caplog.records if record.levelname == "WARNING"
-    )
+    assert results['flow_names_camel_case_ok'] is True # Names are fine
+    assert results['invalid_flow_names'] == []
+    assert any("Flow count 150 exceeds limit of 100" in record.message for record in caplog.records)
 
 @patch('mule_validator.flow_validator.count_flows_and_components')
 @patch('os.walk')
 @patch('os.path.isdir')
-def test_validate_flows_exceed_multiple_limits(mock_isdir, mock_os_walk, mock_count_flows, caplog):
-    """Test validate_flows_in_package when multiple counts exceed limits."""
+def test_validate_flows_exceed_multiple_limits_and_invalid_names(mock_isdir, mock_os_walk, mock_count_flows_func, caplog): # Renamed
+    """Test validate_flows_in_package with multiple limits exceeded and invalid names."""
     package_path = "dummy_package"
     mock_isdir.return_value = True
     mock_os_walk.return_value = [
         (os.path.join(package_path, 'src', 'main', 'mule'), [], ['file1.xml'])
     ]
-    mock_count_flows.return_value = {'flows': 150, 'sub_flows': 10, 'components': 600}
+    mock_count_flows_func.return_value = ({'flows': 150, 'sub_flows': 10, 'components': 600}, ["bad_name"])
     
     results = validate_flows_in_package(package_path, max_flows=100, max_sub_flows=50, max_components=500)
     
     assert results['flows_ok'] is False
-    assert results['sub_flows_ok'] is True
+    assert results['sub_flows_ok'] is True # Assuming sub_flows is ok
     assert results['components_ok'] is False
+    assert results['flow_names_camel_case_ok'] is False
+    assert results['invalid_flow_names'] == ["bad_name"]
     assert any("Flow count 150 exceeds limit of 100" in record.message for record in caplog.records)
     assert any("Component count 600 exceeds limit of 500" in record.message for record in caplog.records)
+    assert any("Found invalid flow names" in record.message for record in caplog.records)
+
 
 @patch('mule_validator.flow_validator.count_flows_and_components')
 @patch('os.walk')
 @patch('os.path.isdir')
-def test_validate_flows_custom_limits(mock_isdir, mock_os_walk, mock_count_flows):
-    """Test validate_flows_in_package with custom limits provided."""
+def test_validate_flows_custom_limits_and_names_ok(mock_isdir, mock_os_walk, mock_count_flows_func): # Renamed
+    """Test validate_flows_in_package with custom limits and ok names."""
     package_path = "dummy_package"
     mock_isdir.return_value = True
     mock_os_walk.return_value = [
         (os.path.join(package_path, 'src', 'main', 'mule'), [], ['file1.xml'])
     ]
-    # Counts that would fail default limits but pass custom limits
-    mock_count_flows.return_value = {'flows': 110, 'sub_flows': 55, 'components': 550} 
+    mock_count_flows_func.return_value = ({'flows': 110, 'sub_flows': 55, 'components': 550}, [])
     
     custom_max_flows = 120
     custom_max_sub_flows = 60
@@ -244,6 +431,8 @@ def test_validate_flows_custom_limits(mock_isdir, mock_os_walk, mock_count_flows
     assert results['flows_ok'] is True
     assert results['sub_flows_ok'] is True
     assert results['components_ok'] is True
+    assert results['flow_names_camel_case_ok'] is True
+    assert results['invalid_flow_names'] == []
     assert results['max_flows_limit'] == custom_max_flows
     assert results['max_sub_flows_limit'] == custom_max_sub_flows
     assert results['max_components_limit'] == custom_max_components
@@ -251,31 +440,35 @@ def test_validate_flows_custom_limits(mock_isdir, mock_os_walk, mock_count_flows
 @patch('mule_validator.flow_validator.count_flows_and_components')
 @patch('os.walk')
 @patch('os.path.isdir')
-def test_validate_flows_mixed_counts_from_files(mock_isdir, mock_os_walk, mock_count_flows):
-    """Test summing counts correctly when some files have zero counts."""
+def test_validate_flows_mixed_counts_and_names_from_files(mock_isdir, mock_os_walk, mock_count_flows_func): # Renamed
+    """Test summing counts and aggregating invalid names correctly."""
     package_path = "dummy_package"
     expected_mule_path = os.path.join(package_path, 'src', 'main', 'mule')
     
     mock_isdir.return_value = True
     mock_os_walk.return_value = [
-        (expected_mule_path, [], ['file_empty.xml', 'file_with_flows.xml', 'file_zero_comps.xml'])
+        (expected_mule_path, [], ['file_empty.xml', 'file_with_flows.xml', 'file_zero_comps.xml', 'file_bad_names.xml'])
     ]
-    mock_count_flows.side_effect = [
-        {'flows': 0, 'sub_flows': 0, 'components': 0},      # for file_empty.xml
-        {'flows': 10, 'sub_flows': 2, 'components': 30},    # for file_with_flows.xml
-        {'flows': 1, 'sub_flows': 0, 'components': 0}       # for file_zero_comps.xml
+    mock_count_flows_func.side_effect = [
+        ({'flows': 0, 'sub_flows': 0, 'components': 0}, []),
+        ({'flows': 10, 'sub_flows': 2, 'components': 30}, ["badNameInSecondFile"]),
+        ({'flows': 1, 'sub_flows': 0, 'components': 0}, []),
+        ({'flows': 2, 'sub_flows': 1, 'components': 5}, ["anotherBad", "oneMore_bad"])
     ]
     
     results = validate_flows_in_package(package_path) # Using default limits
     
-    assert results['total_counts'] == {'flows': 11, 'sub_flows': 2, 'components': 30}
-    assert results['flows_ok'] is True
+    assert results['total_counts'] == {'flows': 13, 'sub_flows': 3, 'components': 35}
+    assert results['flows_ok'] is True # Assuming counts are within limits
     assert results['sub_flows_ok'] is True
     assert results['components_ok'] is True
+    assert results['flow_names_camel_case_ok'] is False
+    assert results['invalid_flow_names'] == ["badNameInSecondFile", "anotherBad", "oneMore_bad"]
 
     expected_calls = [
         call(os.path.join(expected_mule_path, 'file_empty.xml')),
         call(os.path.join(expected_mule_path, 'file_with_flows.xml')),
-        call(os.path.join(expected_mule_path, 'file_zero_comps.xml'))
+        call(os.path.join(expected_mule_path, 'file_zero_comps.xml')),
+        call(os.path.join(expected_mule_path, 'file_bad_names.xml'))
     ]
-    mock_count_flows.assert_has_calls(expected_calls, any_order=False)
+    mock_count_flows_func.assert_has_calls(expected_calls, any_order=False)

@@ -221,6 +221,244 @@ class TestConfigFileValidatorSecurity(unittest.TestCase):
 
         self.assertEqual(len(issues), 2, f"Expected exactly 2 warnings. Got: {issues}")
 
+    def test_filename_context_skips_generic_secret_warning(self):
+        """Test that generic secret warnings are skipped for keys/values in filename context."""
+        # This value would normally trigger GENERIC_SECRET_PATTERN
+        long_path_like_value = "certs/ci/very-long-path-that-might-look-like-a-secret-abcdef1234567890abcdef1234567890.pem"
+
+        test_cases = [
+            # Key suggests filename
+            ({"server.ssl.keyFile": long_path_like_value}, "server.ssl.keyFile"),
+            ({"truststore.path.filename": long_path_like_value}, "truststore.path.filename"),
+            # Value suggests filename/path
+            ({"some.random.key": "path/to/my_very_long_secret_looking_file_name_that_is_a_path.key"}, "some.random.key"),
+            ({"another.key": "classpath:/config/secrets/a_very_long_secret_looking_classpath_resource.properties"}, "another.key"),
+        ]
+
+        for content_dict, key_tested in test_cases:
+            file_path = self._write_temp_yaml_file(f"test_filename_ctx_generic_{key_tested.replace('.', '_')}.yaml", content_dict=content_dict)
+            issues_true = check_yaml_content_rules(file_path, project_uses_secure_properties=True)
+            issues_false = check_yaml_content_rules(file_path, project_uses_secure_properties=False)
+
+            for issue in issues_true + issues_false:
+                self.assertNotIn("appears to be a generic secret/API key", issue,
+                                 f"Should not warn for generic secret on key '{key_tested}' due to filename context. Issue: {issue}")
+
+    def test_filename_context_skips_sensitive_keyword_warning_for_path_values(self):
+        """Test that sensitive keyword warnings are skipped if key/value indicates a path."""
+        test_cases = [
+            # Key "empDbSnowflake.keyFile" contains "key", value is a path
+            ({"empDbSnowflake.keyFile": "configs/snowflake/prod_rsa.key"}, "empDbSnowflake.keyFile"),
+            # Key "api.tokenFile" contains "token", value is a path
+            ({"api.tokenFile": "/etc/secrets/api-token.txt"}, "api.tokenFile"),
+            # Key "credentials.file" contains "credentials", value is a path
+            ({"credentials.file": "classpath:/secure/auth.properties"}, "credentials.file"),
+        ]
+        for content_dict, key_tested in test_cases:
+            file_path = self._write_temp_yaml_file(f"test_filename_ctx_keyword_{key_tested.replace('.', '_')}.yaml", content_dict=content_dict)
+            issues_true = check_yaml_content_rules(file_path, project_uses_secure_properties=True)
+            issues_false = check_yaml_content_rules(file_path, project_uses_secure_properties=False)
+
+            for issue in issues_true + issues_false:
+                self.assertNotIn("contains sensitive keyword", issue,
+                                 f"Should not warn for sensitive keyword on key '{key_tested}' due to filename context with path value. Issue: {issue}")
+                self.assertNotIn("may contain plaintext sensitive data", issue,
+                                 f"Should not warn for sensitive keyword on key '{key_tested}' due to filename context with path value. Issue: {issue}")
+
+    def test_sensitive_key_warns_if_value_not_path_despite_filename_key_suffix(self):
+        """Test that a key like *.keyFile still warns if its value is not a path but a secret."""
+        # Key "empDbSnowflake.keyFile" suggests a filename, but the value is a direct secret
+        content_dict = {"empDbSnowflake.keyFile": "THIS_IS_A_VERY_LONG_AND_OBVIOUS_SECRET_KEY_NOT_A_PATH_abcdef12345"}
+        key_tested = "empDbSnowflake.keyFile"
+        file_path = self._write_temp_yaml_file(f"test_filename_key_secret_value_{key_tested.replace('.', '_')}.yaml", content_dict=content_dict)
+
+        # Expect GENERIC_SECRET_PATTERN to catch this, as it's not a filename context if value is not path-like
+        issues = check_yaml_content_rules(file_path, project_uses_secure_properties=True)
+        self.assertTrue(
+            any("appears to be a generic secret/API key" in issue and key_tested in issue for issue in issues),
+            f"Expected generic secret warning for '{key_tested}' when value is a secret, not a path. Issues: {issues}"
+        )
+
+        # SENSITIVE_KEYWORD check should also apply because the value is not path-like,
+        # thus `is_filename_context` becomes false.
+        # The keyword "key" is in "empDbSnowflake.keyFile".
+        self.assertTrue(
+            any("contains sensitive keyword 'key'" in issue and key_tested in issue for issue in issues),
+            f"Expected sensitive keyword warning for '{key_tested}' when value is a secret. Issues: {issues}"
+        )
+
+
+# More tests might be needed for validate_files and the new comparison logic.
+# For now, focusing on check_yaml_content_rules updates.
+
+from mule_validator.configfile_validator import (
+    _get_common_keys_with_identical_values,
+    compare_environment_config_values,
+    validate_files # For integration testing
+)
+from unittest.mock import patch, mock_open, MagicMock
+
+class TestEnvironmentConfigComparison(unittest.TestCase):
+
+    def test_get_common_keys_with_identical_values_simple(self):
+        data1 = {"a": 1, "b": "same", "c": "diff1"}
+        data2 = {"a": 2, "b": "same", "c": "diff2", "d": "only_in_2"}
+        expected = ["b"]
+        self.assertEqual(sorted(_get_common_keys_with_identical_values(data1, data2)), sorted(expected))
+
+    def test_get_common_keys_with_identical_values_nested(self):
+        data1 = {"user": {"name": "test", "email": "test@example.com"}, "host": "localhost", "port": 8080}
+        data2 = {"user": {"name": "test", "email": "another@example.com"}, "host": "localhost", "port": 8081}
+        expected = ["user.name", "host"]
+        self.assertEqual(sorted(_get_common_keys_with_identical_values(data1, data2)), sorted(expected))
+
+    def test_get_common_keys_with_identical_values_no_common_identical(self):
+        data1 = {"a": 1, "b": 2}
+        data2 = {"a": "one", "b": "two"}
+        self.assertEqual(_get_common_keys_with_identical_values(data1, data2), [])
+
+    def test_get_common_keys_with_identical_values_empty_dicts(self):
+        self.assertEqual(_get_common_keys_with_identical_values({}, {}), [])
+        self.assertEqual(_get_common_keys_with_identical_values({"a": 1}, {}), [])
+
+    def test_get_common_keys_with_identical_values_identical_lists(self):
+        data1 = {"list_key": [1, 2, {"sub": "val"}]}
+        data2 = {"list_key": [1, 2, {"sub": "val"}]}
+        expected = ["list_key"]
+        self.assertEqual(sorted(_get_common_keys_with_identical_values(data1, data2)), sorted(expected))
+
+    def test_get_common_keys_with_identical_values_different_lists(self):
+        data1 = {"list_key": [1, 2, 3]}
+        data2 = {"list_key": [1, 2, 4]}
+        self.assertEqual(_get_common_keys_with_identical_values(data1, data2), [])
+
+    def test_get_common_keys_mixed_types_no_error(self):
+        data1 = {"a": {"nested_a": 1}, "b": "string_val", "c": [1,2]}
+        data2 = {"a": "string_val_instead_of_dict", "b": {"nested_b": 1}, "c": "string_val_instead_of_list"}
+        # No common keys should be found as identical because their types differ at the common key level
+        self.assertEqual(_get_common_keys_with_identical_values(data1, data2), [])
+
+
+    def test_compare_environment_config_values_prod_vs_nonprod(self):
+        prod_data = {"db": {"host": "prod_db", "port": 5432}, "api": {"key": "prod_key", "timeout": 30}, "common_setting": "same_value"}
+        nonprod_data = {"db": {"host": "nonprod_db", "port": 5432}, "api": {"key": "nonprod_key", "timeout": 30}, "common_setting": "same_value"}
+
+        env_configs = {"prod": prod_data, "nonprod": nonprod_data}
+        issues = compare_environment_config_values(env_configs)
+
+        self.assertEqual(len(issues), 2) # db.port and common_setting and api.timeout
+        self.assertTrue(any("Key 'db.port' has the same value" in issue for issue in issues))
+        self.assertTrue(any("Key 'common_setting' has the same value" in issue for issue in issues))
+        self.assertTrue(any("Key 'api.timeout' has the same value" in issue for issue in issues))
+
+    def test_compare_environment_config_values_no_identical(self):
+        prod_data = {"setting1": "prod_val"}
+        nonprod_data = {"setting1": "nonprod_val"}
+        env_configs = {"prod": prod_data, "nonprod": nonprod_data}
+        issues = compare_environment_config_values(env_configs)
+        self.assertEqual(len(issues), 0)
+
+    def test_compare_environment_config_values_one_env_missing(self):
+        prod_data = {"setting1": "prod_val"}
+        env_configs = {"prod": prod_data} # nonprod is missing
+        issues = compare_environment_config_values(env_configs)
+        self.assertEqual(len(issues), 0)
+
+    def test_compare_environment_config_values_one_env_empty(self):
+        prod_data = {"setting1": "prod_val"}
+        nonprod_data = {} # nonprod data is empty
+        env_configs = {"prod": prod_data, "nonprod": nonprod_data}
+        issues = compare_environment_config_values(env_configs)
+        self.assertEqual(len(issues), 0) # No common keys to compare effectively
+
+    @patch('mule_validator.configfile_validator.check_yaml_content_rules', MagicMock(return_value=[]))
+    @patch('mule_validator.configfile_validator.validate_yaml_file', MagicMock(return_value=(True, None)))
+    @patch('os.path.isdir', MagicMock(return_value=True))
+    def test_validate_files_integration_with_env_comparison(self):
+        # Mock file contents for prod and nonprod
+        prod_yaml_content = "key1: value1\ncommon_key: same_value\ndb.host: prod_server"
+        nonprod_yaml_content = "key2: value2\ncommon_key: same_value\ndb.host: nonprod_server"
+
+        # Use a dictionary to map file paths to their content for mock_open
+        # Need to ensure these paths are exactly what os.path.join(resources_folder_path, file_name) would produce.
+        # Let package_folder_path be 'dummy_package'
+        base_path = os.path.join('dummy_package', 'src', 'main', 'resources')
+        mock_files = {
+            os.path.join(base_path, 'config-prod.yaml'): prod_yaml_content,
+            os.path.join(base_path, 'config-nonprod.yaml'): nonprod_yaml_content,
+            os.path.join(base_path, 'config-dev.yaml'): "key_dev: val_dev", # Optional file
+        }
+
+        # Mock os.path.isfile to return True only for files in our mock_files dict
+        def mock_isfile(path):
+            return path in mock_files
+
+        # The mock_open needs to handle multiple file opens correctly.
+        # We can achieve this by making `mock_open.return_value.read.side_effect` dynamic.
+        # However, yaml.safe_load is called inside validate_files.
+        # A simpler way for this test is to mock yaml.safe_load directly.
+
+        def mock_yaml_safe_load(stream):
+            # Find which file content to return based on the stream's name attribute if available
+            # This is a bit fragile as it depends on how `open` is called and if `name` is set.
+            # A more robust mock might be needed if `stream.name` is not reliable.
+            # For now, let's assume `stream` is the file object from `with open(...)`
+            # and its `name` attribute holds the path.
+            path_opened = stream.name
+            if path_opened == os.path.join(base_path, 'config-prod.yaml'):
+                return yaml.safe_load(prod_yaml_content)
+            if path_opened == os.path.join(base_path, 'config-nonprod.yaml'):
+                return yaml.safe_load(nonprod_yaml_content)
+            if path_opened == os.path.join(base_path, 'config-dev.yaml'):
+                return yaml.safe_load("key_dev: val_dev")
+            return {} # Default empty dict for other files
+
+        with patch('os.path.isfile', side_effect=mock_isfile):
+            # We need to mock `open` because `validate_files` opens the file itself
+            # to pass to `yaml.safe_load` for populating `parsed_env_configs_data`.
+            # `check_yaml_content_rules` also opens files, but it's mocked.
+            # `validate_yaml_file` also opens files, also mocked.
+            # The `open` inside `validate_files` for `parsed_env_configs_data` is the one to target.
+            m = mock_open()
+            with patch('builtins.open', m) as mocked_open:
+                # Configure the mock_open to return appropriate content based on file path
+                def read_side_effect(*args, **kwargs):
+                    filepath_arg = args[0]
+                    if filepath_arg in mock_files:
+                        return mock_files[filepath_arg]
+                    return "" # Default empty content
+
+                # Set up the file path correctly in the mocked open file object
+                def new_mock_open(path, *args, **kwargs):
+                    file_content = mock_files.get(path, "")
+                    mock_file_obj = mock_open(read_data=file_content).return_value
+                    mock_file_obj.name = path # Set the name attribute
+                    return mock_file_obj
+
+                mocked_open.side_effect = new_mock_open
+
+                # Call the function under test
+                results = validate_files('dummy_package', project_uses_secure_properties=True)
+
+        # Assertions
+        # Check for the specific comparison issue
+        env_issue_found = False
+        for result in results:
+            if result[1] == 'Environment Config Value Issue':
+                self.assertEqual(result[0], "Prod vs NonProd Comparison")
+                self.assertTrue("Key 'common_key' has the same value" in result[2])
+                env_issue_found = True
+                break
+        self.assertTrue(env_issue_found, "Environment comparison issue for 'common_key' not found.")
+
+        # Check that normal file validation statuses are also present
+        self.assertTrue(any(r[0] == 'config-prod.yaml' and r[1] == 'Valid Syntax' for r in results))
+        self.assertTrue(any(r[0] == 'config-nonprod.yaml' and r[1] == 'Valid Syntax' for r in results))
+        self.assertTrue(any(r[0] == 'config-dev.yaml' and r[1] == 'Valid Syntax' for r in results))
+
+        # Ensure no errors from the mocked loading itself for env comparison
+        self.assertFalse(any("ERROR: Could not load/parse" in r[2] for r in results if r[1] == 'Content Issue'))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

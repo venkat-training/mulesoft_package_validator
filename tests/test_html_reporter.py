@@ -1,11 +1,56 @@
 import unittest
-from mule_validator.html_reporter import generate_html_report
+from unittest.mock import patch, MagicMock
+import subprocess # For testing get_current_git_branch exceptions
+from mule_validator.html_reporter import generate_html_report, get_current_git_branch
+
+class TestGetCurrentGitBranch(unittest.TestCase):
+
+    @patch('subprocess.run')
+    def test_get_current_git_branch_success(self, mock_subprocess_run):
+        mock_process_result = MagicMock()
+        mock_process_result.stdout = "feature/test-branch\n"
+        mock_subprocess_run.return_value = mock_process_result
+
+        branch_name = get_current_git_branch()
+        self.assertEqual(branch_name, "feature/test-branch")
+        mock_subprocess_run.assert_called_once_with(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            capture_output=True, text=True, check=True, timeout=5
+        )
+
+    @patch('subprocess.run', side_effect=subprocess.CalledProcessError(returncode=1, cmd="git ...", stderr="git error"))
+    def test_get_current_git_branch_called_process_error(self, mock_subprocess_run):
+        branch_name = get_current_git_branch()
+        self.assertEqual(branch_name, "Unknown")
+
+    @patch('subprocess.run', side_effect=FileNotFoundError("git command not found"))
+    def test_get_current_git_branch_file_not_found(self, mock_subprocess_run):
+        branch_name = get_current_git_branch()
+        self.assertEqual(branch_name, "Unknown")
+
+    @patch('subprocess.run', side_effect=subprocess.TimeoutExpired(cmd="git ...", timeout=5))
+    def test_get_current_git_branch_timeout(self, mock_subprocess_run):
+        branch_name = get_current_git_branch()
+        self.assertEqual(branch_name, "Unknown")
+
+    @patch('subprocess.run')
+    def test_get_current_git_branch_empty_output(self, mock_subprocess_run):
+        mock_process_result = MagicMock()
+        mock_process_result.stdout = "\n" # Empty or just newline
+        mock_subprocess_run.return_value = mock_process_result
+        branch_name = get_current_git_branch()
+        # Assuming .strip() results in empty string for just newline, which is fine.
+        # If it was truly empty, it's still "Unknown" if check=True would fail on that.
+        # But `check=True` means non-zero exit code. Empty stdout with 0 exit is possible.
+        self.assertEqual(branch_name, "") # Or "Unknown" depending on how robust it should be for empty but successful.
+                                          # Current impl: `strip()` on empty string is empty string.
 
 class TestHtmlReporter(unittest.TestCase):
 
     def setUp(self):
         self.sample_template_string = """
         <h1>Report</h1>
+        <p>Branch: {{git_branch_name}}</p>
         <h2>Code Review</h2>
         <div id="code-review">{{code_review_issues_table}}</div>
         <h2>YAML Validation</h2>
@@ -23,6 +68,7 @@ class TestHtmlReporter(unittest.TestCase):
         """
 
         self.all_placeholders = [
+            "{{git_branch_name}}", # Added new placeholder
             "{{code_review_issues_table}}",
             "{{yaml_validation_results_table}}",
             "{{dependency_validation_results_table}}",
@@ -32,7 +78,8 @@ class TestHtmlReporter(unittest.TestCase):
             "{{secure_properties_status}}"
         ]
 
-    def test_generate_html_report_with_data(self):
+    @patch('mule_validator.html_reporter.get_current_git_branch', return_value="main")
+    def test_generate_html_report_with_data(self, mock_get_branch):
         sample_all_results = {
             'code_reviewer_issues': [["file1.xml", "Error", "Too complex"]],
             'yaml_validation': ["yaml_error1: value", "yaml_error2: value"],
@@ -53,10 +100,13 @@ class TestHtmlReporter(unittest.TestCase):
         self.assertIn("<td>dep1</td><td>Unused</td>", generated_html) # From _format_data_to_html dict handling
         self.assertIn("<td>flow1</td>", generated_html)
         self.assertIn("<td>api1</td>", generated_html)
-        self.assertIn("<li>component_error1</li>", generated_html)
+        self.assertIn("<li>component_error1</li>", generated_html) # components_validator was not in template, but _format_data_to_html handles list of strings
         self.assertIn("<p>True</p>", generated_html) # project_uses_secure_properties
+        self.assertIn("Branch: main", generated_html) # Check for mocked branch name
+        mock_get_branch.assert_called_once()
 
-    def test_generate_html_report_empty_and_missing_data(self):
+    @patch('mule_validator.html_reporter.get_current_git_branch', return_value="develop")
+    def test_generate_html_report_empty_and_missing_data(self, mock_get_branch):
         sample_all_results_empty = {
             'code_reviewer_issues': [],
             'yaml_validation': None, # Test None
@@ -77,10 +127,13 @@ class TestHtmlReporter(unittest.TestCase):
         self.assertIn("<p>No data available.</p>", generated_html) # For yaml_validation (None) and dependency_validation ({})
         self.assertIn("<p>No flow validation data available or no issues found.</p>", generated_html) # For flow_validation ([])
         self.assertIn("<p>No API validation data available or no issues found.</p>", generated_html) # For api_validation (None)
-        self.assertIn("<p>No data available.</p>", generated_html) # For components_validator ([])
+        # self.assertIn("<p>No data available.</p>", generated_html) # For components_validator ([]) - Note: components_validator is not a defined placeholder in the provided template
         self.assertIn("<p>False</p>", generated_html) # project_uses_secure_properties
+        self.assertIn("Branch: develop", generated_html) # Check for mocked branch name
+        mock_get_branch.assert_called_once()
 
-    def test_generate_html_report_mixed_data_some_missing_keys(self):
+    @patch('mule_validator.html_reporter.get_current_git_branch', return_value="feature/xyz")
+    def test_generate_html_report_mixed_data_some_missing_keys(self, mock_get_branch):
         # Test with some keys completely missing from all_results
         sample_all_results_partial = {
             'code_reviewer_issues': [["file2.xml", "Warning", "Magic number"]],
@@ -115,9 +168,13 @@ class TestHtmlReporter(unittest.TestCase):
             "{{flow_validation_results_table}}",
             "{{api_validation_results_table}}",
             "{{components_validation_results_table}}"
+            # Note: {{git_branch_name}} is handled by mock, so it won't be "missing"
         ]
         for placeholder in missing_data_placeholders:
              self.assertNotIn(placeholder, generated_html)
+
+        self.assertIn("Branch: feature/xyz", generated_html) # Check for mocked branch name
+        mock_get_branch.assert_called_once()
 
 
 if __name__ == '__main__':
