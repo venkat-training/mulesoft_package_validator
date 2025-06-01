@@ -7,7 +7,7 @@ MuleSoft code review, and component structure. It takes the package folder path
 as a command-line argument and prints a summary of all validation results.
 """
 import argparse
-from mule_validator.dependency_validator import validate_dependencies_and_size
+from mule_validator.dependency_validator import validate_all_projects
 from mule_validator.flow_validator import validate_flows_in_package
 from mule_validator.code_reviewer import review_all_files
 from mule_validator.api_validator import validate_api_spec_and_flows
@@ -89,7 +89,7 @@ def main():
 
     # Step 3: Validate Dependencies and Build Size
     print("\nValidating dependencies and build size...")
-    dependency_validation_results = validate_dependencies_and_size(package_folder_path, build_folder_path)
+    dependency_validation_results = validate_all_projects(package_folder_path)
     print("Dependency Validation Results:", dependency_validation_results)
 
     # Step 4: Validate Flows and Components within flows

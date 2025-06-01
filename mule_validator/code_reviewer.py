@@ -6,6 +6,7 @@ like the use of Mule Secure Properties.
 import os
 from lxml import etree
 import re
+from mule_validator.flow_validator import validate_flow_name_camel_case
 # tabulate is not used in this module directly anymore, but was part of the original file.
 # If other parts of the project rely on it being imported here, it could be kept,
 # otherwise, it's a candidate for removal from this specific file's imports.
@@ -66,10 +67,11 @@ def check_flow_names(root, namespaces):
             # Add a check to ensure name_to_check is not empty before validation
             if not name_to_check:
                 issues.append(f"Flow name '{name}' results in an empty part for validation after APIkit prefix/suffix removal.")
-            elif not is_camel_case(name_to_check):
+            #elif not is_camel_case(name_to_check):
+            elif not validate_flow_name_camel_case(name_to_check):
                 issues.append(f"Flow name part '{name_to_check}' (from original: '{name}') does not comply with camel case format.")
-            elif not re.match(r'^[a-zA-Z0-9]+$', name_to_check):
-                issues.append(f"Flow name part '{name_to_check}' (from original: '{name}') contains invalid characters. It should be alphanumeric.")
+            #elif not re.match(r'^[a-zA-Z0-9]+$', name_to_check):
+                #issues.append(f"Flow name part '{name_to_check}' (from original: '{name}') contains invalid characters. It should be alphanumeric.")
     return issues
 
 def check_http_listener(root, namespaces):
@@ -430,10 +432,6 @@ def review_all_files(directory):
     return all_issues_data, project_uses_secure_properties
 
 # Example usage
-#directory = 'c:/work/rnd/mulesoft-temp/sbs-ott-triggerintegrator'
-#directory = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-mpx-mediamanagmentservices'
-#directory = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-tbs-ingestmediainfo'
-#directory = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-pnc-integrationservices'
-#directory = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-eis-integrationservices'
+#directory = 'C:/Users/yourname/ws/mulesoft/' + 'abc-xyz-integrationServices'
 
 #review_all_files(directory)

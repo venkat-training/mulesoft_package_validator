@@ -1,17 +1,54 @@
 import argparse
-import logging # Added import
-from .reporter import generate_console_report # Added import
-from .dependency_validator import validate_dependencies_and_size
+import logging
+import subprocess
+import sys
+import os
+from .reporter import generate_console_report
+from .dependency_validator import validate_all_projects  # Use the advanced dependency validator
 from .flow_validator import validate_flows_in_package
 from .code_reviewer import review_all_files
 from .api_validator import validate_api_spec_and_flows
 from .configfile_validator import validate_files
 
+def ensure_maven_and_build(project_dir):
+    """
+    Ensures Maven is available and runs 'mvn clean install' before validation.
+    Exits the process if Maven is not available or the build fails.
+    """
+    try:
+        result = subprocess.run(["mvn", "-v"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        if result.returncode != 0:
+            print("Maven is not available or not in PATH. Please install Maven and ensure it's in your PATH.")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error checking Maven: {e}")
+        sys.exit(1)
+
+    print("Running 'mvn clean install' to build the project and resolve dependencies...")
+    build = subprocess.run(
+        ["mvn", "clean", "install", "-DskipTests"],
+        cwd=project_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True
+    )
+    if build.returncode != 0:
+        print("Maven build failed. Validation cannot proceed.")
+        print(build.stdout.decode())
+        print(build.stderr.decode())
+        sys.exit(1)
+    print("Build successful. Proceeding with validation.")
 
 def main():
-
     """
     Main function to parse command-line arguments and validate the MuleSoft package.
+    Performs the following validations:
+    1. YAML configuration file validation
+    2. Dependency validation (checks all pom.xml files for missing/unresolved/duplicate dependencies)
+    3. Flow and component validation
+    4. API specification and definition flow validation
+    5. Code review of flow definitions
+    Results are aggregated and reported via the configured reporter.
     """
     # Configure Logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -68,26 +105,23 @@ def main():
     # Define the paths to your MuleSoft package and build folder
     package_folder_path = args.package_folder_path
     build_folder_path = args.build_folder_path if args.build_folder_path else args.package_folder_path
-    
+
     logger.info(f"Starting MuleSoft package validation for: {package_folder_path}")
     if args.build_folder_path:
         logger.info(f"Using custom build folder path: {build_folder_path}")
     else:
         logger.info(f"Build folder path not provided, defaulting to package folder path: {build_folder_path}")
 
-    #1. Validate YAML Files
+    # Ensure Maven is available and build the project before validation
+    ensure_maven_and_build(package_folder_path)
+
+    # 1. Validate YAML Files
     logger.info("Starting YAML configuration file validation...")
     yaml_validation_results = validate_files(package_folder_path)
-    # Removed print("YAML Validation Results:", yaml_validation_results)
 
-    # 2. Validate Dependencies and Build Size
-    logger.info("Starting dependency and build size validation...")
-    dependency_validation_results = validate_dependencies_and_size(
-        package_folder_path,
-        build_folder_path,
-        max_size_mb=args.max_build_size_mb
-    )
-    # Removed print("Dependency Validation Results:", dependency_validation_results)
+    # 2. Validate Dependencies (advanced: checks all pom.xml files in the project tree)
+    logger.info("Starting dependency validation for all Maven projects...")
+    dependency_validation_results = validate_all_projects(package_folder_path)
 
     # 3. Validate Flows and Components
     logger.info("Starting flow and component validation...")
@@ -97,17 +131,14 @@ def main():
         max_sub_flows=args.max_sub_flows,
         max_components=args.max_components
     )
-    # Removed print("Flow Validation Results:", flow_validation_results)
 
     # 4. Validate API Specifications and Definition Flows
     logger.info("Starting API specification and definition flow validation...")
     api_validation_results = validate_api_spec_and_flows(package_folder_path)
-    # Removed print("API Validation Results:", api_validation_results)
     
     # 5. Code Review the flow definitions
     logger.info("Starting code review of flow definitions...")
     code_reviewer_results = review_all_files(package_folder_path)
-    # Removed print("Code Review Results:", code_reviewer_results)
 
     # Combine all results
     logger.info("All validations completed. Results collected.")
@@ -122,8 +153,4 @@ def main():
     generate_console_report(all_results)
 
 if __name__ == '__main__':
-    # It's good practice to also configure logging here if the script can be run directly
-    # However, the main() function already configures it.
-    # If main() was not configuring it, you'd add:
-    # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     main()

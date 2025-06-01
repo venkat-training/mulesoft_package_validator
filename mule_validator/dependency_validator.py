@@ -2,6 +2,7 @@ import os
 import xml.etree.ElementTree as ET
 import logging
 import re
+import subprocess
 from mule_validator.security_patterns import (
     PASSWORD_KEYWORDS,
     COMMON_PASSWORD_PATTERNS,
@@ -44,9 +45,9 @@ def find_secrets_in_pom_xml(root, pom_file_path):
     if root is None:
         return issues
 
-    for element in root.iter(): # Iterates over all elements in the tree
+    for element in root.iter():
         element_tag_for_path = get_element_path(element)
-        element_tag_lower = element_tag_for_path.lower() # Use the simplified tag name for checks
+        element_tag_lower = element_tag_for_path.lower()
 
         # 1. Check element tag name
         if element_tag_lower in LOWERCASE_PASSWORD_KEYWORDS and element.text:
@@ -67,7 +68,7 @@ def find_secrets_in_pom_xml(root, pom_file_path):
         # 2. Check element text content
         if element.text and isinstance(element.text, str):
             text_value = element.text.strip()
-            if not text_value: # Skip if text is just whitespace
+            if not text_value:
                 continue
             for pattern_obj in COMPILED_COMMON_PASSWORD_PATTERNS:
                 if pattern_obj.search(text_value):
@@ -85,12 +86,11 @@ def find_secrets_in_pom_xml(root, pom_file_path):
                         'issue_type': 'Suspicious Value',
                         'message': f"Text content of <{element_tag_for_path}> matches generic secret pattern: {pattern_obj.pattern}"
                     })
-        
+
         # 3. Check attributes
         for attr_name, attr_value in element.attrib.items():
             attr_name_lower = attr_name.lower()
-            if isinstance(attr_value, str): # Ensure attribute value is a string
-                # Check attribute name keywords
+            if isinstance(attr_value, str):
                 if attr_name_lower in LOWERCASE_PASSWORD_KEYWORDS:
                     issues.append({
                         'file_path': pom_file_path, 'xml_path': element_tag_for_path, 'element_tag': element.tag,
@@ -99,14 +99,13 @@ def find_secrets_in_pom_xml(root, pom_file_path):
                         'message': f"Attribute '{attr_name}' in <{element_tag_for_path}> matches a password keyword."
                     })
                 elif attr_name_lower in LOWERCASE_GENERIC_SECRET_KEYWORDS:
-                     issues.append({
+                    issues.append({
                         'file_path': pom_file_path, 'xml_path': element_tag_for_path, 'element_tag': element.tag,
                         'attribute_name': attr_name, 'value_excerpt': attr_value[:50] + ('...' if len(attr_value) > 50 else ''),
                         'issue_type': 'Hardcoded Secret',
                         'message': f"Attribute '{attr_name}' in <{element_tag_for_path}> matches a generic secret keyword."
                     })
 
-                # Check attribute value patterns
                 for pattern_obj in COMPILED_COMMON_PASSWORD_PATTERNS:
                     if pattern_obj.search(attr_value):
                         issues.append({
@@ -129,58 +128,55 @@ def find_secrets_in_pom_xml(root, pom_file_path):
 def parse_pom_dependencies(pom_file_path):
     """
     Parses the Maven POM file to extract dependencies.
-    Args:
-        pom_file_path (str): The path to the pom.xml file.
-    Returns:
-        tuple: (list of dependencies, ET.Element root object or None)
+    Returns a list of (groupId, artifactId, version, classifier, dep_type) tuples.
     """
     dependencies = []
-    root = None
     try:
         tree = ET.parse(pom_file_path)
         root = tree.getroot()
-
-        # Find all dependencies
         for dependency in root.findall(f".//{{{MAVEN_POM_NAMESPACE}}}dependency"):
-            group_id_element = dependency.find(f"{{{MAVEN_POM_NAMESPACE}}}groupId")
-            artifact_id_element = dependency.find(f"{{{MAVEN_POM_NAMESPACE}}}artifactId")
-            if group_id_element is not None and artifact_id_element is not None:
-                group_id = group_id_element.text
-                artifact_id = artifact_id_element.text
-                dependencies.append(f"{group_id}:{artifact_id}")
-            else:
-                logger.warning(f"Found a dependency without groupId or artifactId in {pom_file_path}")
-    except ET.ParseError as e:
-        logger.error(f"Error parsing POM file: {pom_file_path} - {e}")
-    return dependencies, root
+            group_id = dependency.find(f"{{{MAVEN_POM_NAMESPACE}}}groupId")
+            artifact_id = dependency.find(f"{{{MAVEN_POM_NAMESPACE}}}artifactId")
+            version = dependency.find(f"{{{MAVEN_POM_NAMESPACE}}}version")
+            classifier = dependency.find(f"{{{MAVEN_POM_NAMESPACE}}}classifier")
+            dep_type = dependency.find(f"{{{MAVEN_POM_NAMESPACE}}}type")
+            if group_id is not None and artifact_id is not None:
+                dependencies.append((
+                    group_id.text.strip(),
+                    artifact_id.text.strip(),
+                    version.text.strip() if version is not None and version.text else None,
+                    classifier.text.strip() if classifier is not None and classifier.text else None,
+                    dep_type.text.strip() if dep_type is not None and dep_type.text else "jar"
+                ))
+    except Exception as e:
+        logger.error(f"Error parsing {pom_file_path}: {e}")
+    return dependencies
 
 def scan_code_for_dependencies(package_folder_path, dependencies):
     """
     Scans MuleSoft code for usages of dependencies.
     Args:
         package_folder_path (str): The path to the MuleSoft package folder.
-        dependencies (list): List of dependency coordinates (groupId:artifactId).
+        dependencies (list): List of dependency coordinates (groupId, artifactId, version, classifier, dep_type).
     Returns:
         set: A set of used dependencies.
     """
     used_dependencies = set()
-    if not dependencies: # No need to scan if there are no dependencies to look for
+    if not dependencies:
         return used_dependencies
 
     for root_dir, _, files in os.walk(package_folder_path):
         for file in files:
-            if file.endswith('.xml'): # Assuming Mule configuration files are XML
+            if file.endswith('.xml'):
                 file_path = os.path.join(root_dir, file)
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f: # Specify encoding
+                    with open(file_path, 'r', encoding='utf-8') as f:
                         content = f.read()
-                        for dependency in dependencies:
-                            # Simple check, could be refined for more accuracy
-                            # e.g., by checking for specific XML elements or patterns
-                            group_id, artifact_id = dependency.split(':', 1) # Split only once
+                        for dep in dependencies:
+                            group_id, artifact_id = dep[0], dep[1]
                             if group_id in content or artifact_id in content:
-                                used_dependencies.add(dependency)
-                except (IOError, OSError) as e: # Catch more specific exceptions
+                                used_dependencies.add(dep)
+                except (IOError, OSError) as e:
                     logger.error(f"Error reading or processing file: {file_path} - {e}")
     return used_dependencies
 
@@ -199,74 +195,138 @@ def calculate_build_size(build_folder_path):
             total_size += os.path.getsize(file_path)
     return total_size
 
-def validate_dependencies_and_size(package_folder_path, build_folder_path, max_size_mb=100):
+def check_dependency_jars(target_folder, dependencies):
     """
-    Validates dependencies and build size for a MuleSoft package.
-    Args:
-        package_folder_path (str): The path to the MuleSoft package folder.
-        build_folder_path (str): The path to the build folder (e.g., target).
-        max_size_mb (int): Maximum allowed size in MB for the build.
-    Returns:
-        dict: Validation results including unused dependencies, build size status, and pom security warnings.
+    Checks if the dependency artifacts are present in the target or lib folder,
+    or in the local Maven repository.
+    Uses the correct extension based on <type>.
+    Returns a list of missing artifacts.
     """
-    pom_file_path = os.path.join(package_folder_path, 'pom.xml')
-    results = {
-        'unused_dependencies': [],
-        'build_size_mb': 0,
-        'size_ok': False, # Default to false, set to true if size is ok or not calculable
-        'max_size_mb': max_size_mb,
-        'pom_security_warnings': [],
-        'pom_parsing_error': None
-    }
+    missing_artifacts = []
+    m2_repo = os.path.expanduser("~/.m2/repository")
+    for group_id, artifact_id, version, classifier, dep_type in dependencies:
+        if not version:
+            continue
+        ext = dep_type if dep_type != "jar" else "jar"
+        if classifier:
+            artifact_name = f"{artifact_id}-{version}-{classifier}.{ext}"
+        else:
+            artifact_name = f"{artifact_id}-{version}.{ext}"
+        found = False
+        # Check in target folder
+        for root, dirs, files in os.walk(target_folder):
+            if artifact_name in files:
+                found = True
+                break
+        # Check in local Maven repository
+        if not found:
+            group_path = os.path.join(m2_repo, *group_id.split('.'), artifact_id, version)
+            artifact_path = os.path.join(group_path, artifact_name)
+            if os.path.isfile(artifact_path):
+                found = True
+        if not found:
+            missing_artifacts.append(artifact_name)
+    return missing_artifacts
 
-    if not os.path.isfile(pom_file_path):
-        logger.error(f"POM file not found at path: {pom_file_path}")
-        # Raising FileNotFoundError as per requirements for this specific error.
-        # Other errors (like parsing) will be reported in the results dict.
-        raise FileNotFoundError(f"POM file not found at path: {pom_file_path}")
+def check_dependency_resolution(group_id, artifact_id, version, classifier=None, dep_type="jar"):
+    """
+    Checks if a dependency is resolvable by first looking in the local Maven repository,
+    and only then using Maven to check remote repositories.
+    Uses the correct extension based on <type>.
+    Returns True if resolvable, False otherwise.
+    """
+    if not version:
+        return False
 
-    dependencies, pom_root = parse_pom_dependencies(pom_file_path)
-    if pom_root is None: # Indicates a parsing error
-        logger.error(f"POM file parsing failed for {pom_file_path}. Secret scanning will be skipped.")
-        results['pom_parsing_error'] = f"Could not parse {pom_file_path}. Secret scanning skipped."
+    ext = dep_type if dep_type != "jar" else "jar"
+    if classifier:
+        artifact_name = f"{artifact_id}-{version}-{classifier}.{ext}"
     else:
-        logger.info(f"Successfully parsed {pom_file_path}. Scanning for secrets...")
-        secret_issues = find_secrets_in_pom_xml(pom_root, pom_file_path)
-        results['pom_security_warnings'] = secret_issues
-        if secret_issues:
-            logger.warning(f"Found {len(secret_issues)} potential secrets in {pom_file_path}.")
-        else:
-            logger.info(f"No potential secrets found in {pom_file_path}.")
+        artifact_name = f"{artifact_id}-{version}.{ext}"
+    m2_repo = os.path.expanduser("~/.m2/repository")
+    group_path = os.path.join(m2_repo, *group_id.split('.'), artifact_id, version)
+    artifact_path = os.path.join(group_path, artifact_name)
+    if os.path.isfile(artifact_path):
+        return True
 
-    if not dependencies and pom_root is not None: # POM parsed but no dependencies found
-        logger.warning(f"No dependencies found in {pom_file_path}.")
-    elif not dependencies and pom_root is None: # POM parsing failed, already logged
-        logger.warning(f"Proceeding with empty dependency list due to POM parsing issues or empty POM for {pom_file_path}.")
-
-
-    used_dependencies = scan_code_for_dependencies(package_folder_path, dependencies)
-    unused_dependencies = set(dependencies) - used_dependencies
-    results['unused_dependencies'] = list(unused_dependencies)
-
-    if unused_dependencies:
-        logger.warning(f"Unused dependencies found: {list(unused_dependencies)}")
-
-    build_size_bytes = 0
+    # If not found locally, try to resolve via Maven
+    artifact_str = f"{group_id}:{artifact_id}:{version}"
+    if classifier:
+        artifact_str += f":{classifier}"
+    if dep_type and dep_type != "jar":
+        artifact_str += f"@{dep_type}"
+    cmd = [
+        r"C:\apps\apache-maven-3.9.9\bin\mvn.cmd", "dependency:get",
+        f"-Dartifact={artifact_str}",
+        "-q"
+    ]
     try:
-        build_size_bytes = calculate_build_size(build_folder_path)
-        build_size_mb = build_size_bytes / (1024 * 1024)
-        results['build_size_mb'] = round(build_size_mb, 2)
-        results['size_ok'] = build_size_mb <= max_size_mb
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+        return result.returncode == 0
+    except Exception as e:
+        logger.error(f"Error running Maven for {artifact_str}: {e}")
+        return False
 
-        if not results['size_ok']:
-            logger.warning(f"Build size {build_size_mb:.2f}MB exceeds maximum of {max_size_mb}MB.")
+def find_duplicate_dependencies(dependencies):
+    """
+    Finds duplicate dependencies (same groupId and artifactId and classifier and type).
+    """
+    seen = set()
+    duplicates = set()
+    for group_id, artifact_id, version, classifier, dep_type in dependencies:
+        key = (group_id, artifact_id, classifier, dep_type)
+        if key in seen:
+            duplicates.add(key)
         else:
-            logger.info(f"Build size {build_size_mb:.2f}MB is within the limit of {max_size_mb}MB.")
-    except OSError as e:
-        logger.error(f"Could not calculate build size for {build_folder_path}: {e}")
-        # results['size_ok'] remains False or could be set to a specific error status
-        results['build_size_error'] = f"Could not calculate build size: {e}"
-        results['size_ok'] = False # Explicitly set to false on error
+            seen.add(key)
+    return [f"{g}:{a}" + (f":{c}" if c else "") + (f":{t}" if t and t != "jar" else "") for g, a, c, t in duplicates]
 
+def validate_pom_dependencies(pom_file_path, target_folder):
+    """
+    Validates dependencies for a single pom.xml.
+    Returns a dict with missing_jars, unresolved_deps, duplicate_deps.
+    """
+    results = {
+        "missing_jars": [],
+        "unresolved_dependencies": [],
+        "duplicate_dependencies": [],
+        "all_dependencies": []
+    }
+    dependencies = parse_pom_dependencies(pom_file_path)
+    results["all_dependencies"] = dependencies
+
+    # Check for missing artifacts in target/lib and local m2 repo
+    missing_jars = check_dependency_jars(target_folder, dependencies)
+    results["missing_jars"] = missing_jars
+
+    # Check for unresolved dependencies via Maven
+    unresolved = []
+    for group_id, artifact_id, version, classifier, dep_type in dependencies:
+        if not check_dependency_resolution(group_id, artifact_id, version, classifier, dep_type):
+            unresolved.append(
+                f"{group_id}:{artifact_id}:{version}" +
+                (f":{classifier}" if classifier else "") +
+                (f":{dep_type}" if dep_type and dep_type != "jar" else "")
+            )
+    results["unresolved_dependencies"] = unresolved
+
+    # Check for duplicates
+    duplicates = find_duplicate_dependencies(dependencies)
+    results["duplicate_dependencies"] = duplicates
 
     return results
+
+def validate_all_projects(base_folder):
+    """
+    Only validates the root-level pom.xml in the given base_folder.
+    """
+    validation_report = {}
+    pom_path = os.path.join(base_folder, "pom.xml")
+    target_folder = os.path.join(base_folder, "target")
+    if os.path.isfile(pom_path):
+        logger.info(f"Validating dependencies for {pom_path}")
+        result = validate_pom_dependencies(pom_path, target_folder)
+        validation_report[pom_path] = result
+    else:
+        logger.warning(f"No pom.xml found in {base_folder}")
+    return validation_report

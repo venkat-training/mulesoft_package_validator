@@ -6,13 +6,23 @@ files within a MuleSoft project's `src/main/resources` directory. It also
 validates the YAML syntax of these files and performs content-based checks
 to identify potential issues, such as plaintext secrets, especially considering
 whether the project utilizes Mule Secure Properties for encryption.
+
+Additionally, it compares environment-specific configuration files (e.g., prod vs nonprod)
+to detect keys that are expected to differ between environments (such as hostnames,
+IP addresses, passwords, API endpoints, and URLs) but have identical values, which may
+indicate a misconfiguration.
 """
+
 import os
 import yaml
 import re
-# tabulate is not used in this module directly anymore.
-# It was likely used for printing results directly from this module before refactoring.
-# from tabulate import tabulate 
+
+# Regex for detecting long, random-looking strings that might be unencrypted secrets.
+# This pattern looks for strings of 32+ characters containing alphanumeric chars and common Base64 chars.
+GENERIC_SECRET_PATTERN = re.compile(r'[a-zA-Z0-9+/=]{32,}')
+
+# Keywords that often indicate a property key is for a sensitive value.
+SENSITIVE_KEYWORDS = ['password', 'secret', 'key', 'token', 'credentials', 'apikey']
 
 def validate_yaml_file(file_path):
     """
@@ -33,13 +43,6 @@ def validate_yaml_file(file_path):
         return True, None
     except yaml.YAMLError as exc:
         return False, str(exc)
-
-# Regex for detecting long, random-looking strings that might be unencrypted secrets.
-# This pattern looks for strings of 32+ characters containing alphanumeric chars and common Base64 chars.
-GENERIC_SECRET_PATTERN = re.compile(r'[a-zA-Z0-9+/=]{32,}')
-
-# Keywords that often indicate a property key is for a sensitive value.
-SENSITIVE_KEYWORDS = ['password', 'secret', 'key', 'token', 'credentials', 'apikey']
 
 def check_yaml_content_rules(file_path, project_uses_secure_properties):
     """
@@ -77,7 +80,7 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
     def _find_issues_in_yaml_data(current_data, key_prefix=''):
         """
         Recursively traverses YAML data (dictionaries, lists, strings) to find issues.
-        
+
         Args:
             current_data: The current piece of YAML data (dict, list, or scalar).
             key_prefix (str): The prefix for the current key, used to build full key paths
@@ -99,7 +102,6 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
             if not current_full_key_name: # Handle cases where a top-level value is a simple string
                  current_full_key_name = "UnnamedTopLevelValue"
 
-
             # Check if the value is Mule encrypted (starts with "![", ends with "]").
             is_mule_encrypted = value_str.startswith("![") and value_str.endswith("]")
 
@@ -110,7 +112,7 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
             value_lower = value_str.lower()
             common_file_extensions = ('.jks', '.pem', '.cer', '.p12', '.keystore', '.properties', '.key', '.crt', '.yaml', '.yml', '.xml', '.json', '.txt')
             is_value_like_filename_or_path = value_lower.endswith(common_file_extensions) or '/' in value_str or '\\' in value_str or value_str.startswith("classpath:")
-            
+
             is_filename_context = is_key_suggestive_of_filename or is_value_like_filename_or_path
 
             if is_mule_encrypted:
@@ -161,12 +163,15 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
 # contains one of these keywords.
 TARGET_CONFIG_KEYWORDS = [
     'host', 'hostname', 'ip', 'ipaddress',
-    'password', 'secret', 'credential', 'apikey', 'token',
-    'instance', 'instanceid', 'instancename', 'server',
-    'user', 'username',
-    'url', 'uri', 'endpoint',
-    'port'
+    'password', 'secret', 'apikey', 'token',
+    'url', 'uri', 'endpoint'
 ]
+
+# Regex pattern for strict environment-sensitive keys (edit as needed)
+TARGET_CONFIG_REGEX = re.compile(
+    r'^(host(name)?|ip(address)?|password|secret|apikey|token|url|uri|endpoint)$',
+    re.IGNORECASE
+)
 # Note: The effectiveness of this list depends on common naming conventions.
 # Keywords should be specific enough to target environment-sensitive properties
 # while avoiding overly generic terms (e.g., 'name', 'id' alone) that might
@@ -175,6 +180,14 @@ TARGET_CONFIG_KEYWORDS = [
 def _get_common_keys_with_identical_values(data1, data2, prefix=""):
     """
     Recursively finds common keys in two data structures (dicts) that have identical scalar values.
+
+    Args:
+        data1 (dict): The first dictionary to compare.
+        data2 (dict): The second dictionary to compare.
+        prefix (str): The prefix for the key path (used for recursion).
+
+    Returns:
+        list: A list of key paths (dot-separated) where both dictionaries have the same value.
     """
     identical_value_keys = []
     if not isinstance(data1, dict) or not isinstance(data2, dict):
@@ -202,69 +215,49 @@ def compare_environment_config_values(env_configs_data):
     """
     Compares configuration data between different environments (e.g., prod vs. nonprod)
     to find keys that (a) have identical values and (b) are identified as
-    potentially environment-specific based on TARGET_CONFIG_KEYWORDS.
+    potentially environment-specific based on TARGET_CONFIG_KEYWORDS or regex.
 
-    This helps identify configurations like hostnames, passwords, or specific instance URLs
-    that might have been copied between environment files without appropriate modification.
-    It aims to reduce false positives by not flagging all identical values, only those
-    associated with keywords suggesting they should be environment-specific.
+    Only keys matching the regex or exactly matching a keyword are compared.
 
     Args:
         env_configs_data (dict): A dictionary where keys are environment identifiers
                                  (e.g., "prod", "nonprod") and values are their
                                  parsed YAML data (dictionaries).
-                                 Example: {"prod": {...prod_data...}, "nonprod": {...nonprod_data...}}
 
     Returns:
         list: A list of issue strings. Each string describes a key found to have
               an identical value across the compared environments, where the key
-              is also deemed environment-specific by matching TARGET_CONFIG_KEYWORDS.
-              An empty list is returned if no such issues are found.
+              is also deemed environment-specific by matching TARGET_CONFIG_KEYWORDS or regex.
     """
     issues = []
 
     # Define pairs to compare. For now, focus on prod vs nonprod.
-    # This can be expanded later (e.g., prod vs dev, uat vs prod).
     comparison_pairs = []
     if "prod" in env_configs_data and "nonprod" in env_configs_data:
         comparison_pairs.append(("prod", "nonprod"))
-    # Add more pairs as needed, e.g.:
-    # if "prod" in env_configs_data and "dev" in env_configs_data:
-    #     comparison_pairs.append(("prod", "dev"))
 
     for env1_name, env2_name in comparison_pairs:
         env1_data = env_configs_data[env1_name]
         env2_data = env_configs_data[env2_name]
 
-        if not env1_data or not env2_data: # Skip if one of the configs is empty/invalid
+        if not env1_data or not env2_data:
             continue
 
         identical_raw_keys = _get_common_keys_with_identical_values(env1_data, env2_data)
 
         filtered_identical_keys = []
         for key_path in identical_raw_keys:
-            # Check if the key_path is relevant based on TARGET_CONFIG_KEYWORDS
-            # Convert key_path to lowercase for case-insensitive matching
-            # Split key_path into segments to check each part against keywords
             key_path_segments = key_path.lower().split('.')
             is_relevant_key = False
             for segment in key_path_segments:
-                for keyword in TARGET_CONFIG_KEYWORDS:
-                    # Check if the keyword is a substring of the segment OR if the segment is the keyword.
-                    # Example: 'host' in 'dbhost' or segment == 'host'.
-                    # More precise: check if segment equals keyword or contains keyword as a distinct word part.
-                    # For simplicity, substring check is often a good start.
-                    if keyword in segment: # keyword is substring of segment (e.g. 'host' in 'db.mainhost.url')
-                        is_relevant_key = True
-                        break
-                if is_relevant_key:
+                # Only match if the segment is exactly a keyword or matches the regex
+                if segment in TARGET_CONFIG_KEYWORDS or TARGET_CONFIG_REGEX.match(segment):
+                    is_relevant_key = True
                     break
-
             if is_relevant_key:
                 filtered_identical_keys.append(key_path)
 
         for key_path in filtered_identical_keys:
-            # It's an issue if values for these specific types of keys are identical.
             issue_message = (
                 f"WARNING: Key '{key_path}' (identified as potentially environment-specific) "
                 f"has the same value in '{env1_name.upper()}' and '{env2_name.upper()}' configurations. "
@@ -274,8 +267,6 @@ def compare_environment_config_values(env_configs_data):
 
     return issues
 
-# --- End of new environment comparison logic ---
-
 def validate_files(package_folder_path, project_uses_secure_properties):
     """
     Validates YAML property files in a MuleSoft project's `src/main/resources` directory.
@@ -284,6 +275,8 @@ def validate_files(package_folder_path, project_uses_secure_properties):
     1. Presence of mandatory files (`config-prod.yaml`, `config-nonprod.yaml`).
     2. YAML syntax validity of all found configuration files.
     3. Content rules violations (e.g., plaintext secrets) using `check_yaml_content_rules`.
+    4. Environment comparison for specific keys (hostnames, IPs, passwords, URLs, endpoints, etc.)
+       that should differ between environments.
 
     Args:
         package_folder_path (str): The path to the root of the MuleSoft package.
@@ -378,10 +371,4 @@ def validate_files(package_folder_path, project_uses_secure_properties):
 
 # Example usage (typically called from main.py or a similar orchestrator script)
 # package_folder_path = 'path/to/your/mulesoft/project'
-#package_folder_path = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-mpx-mediamanagmentservices'
-#package_folder_path = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-tbs-ingestmediainfo'
-#package_folder_path = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-pnc-integrationservices'
-#package_folder_path = 'C:/Users/venkats/OneDrive - SBS Corporation/Documents/SBS/ws/mulesoft/' + 'sbs-eis-integrationservices'
-
-# Validate the files in the specified package folder
 #validate_files(package_folder_path)
