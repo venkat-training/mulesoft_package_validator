@@ -118,6 +118,15 @@ def test_is_camel_case_basic():
     assert is_camel_case("endsWithALLCAPS") is True # This should be true by current rule
     assert is_camel_case("alllowercase") is True # Currently true, might need refinement for "multiWordAllLower"
 
+    # Tests for leading backslash handling in is_camel_case
+    assert is_camel_case(r"\validName") is True
+    assert is_camel_case(r"\invalid_name") is False
+    assert is_camel_case(r"\\multipleSlashes") is False # after stripping one, '\multipleSlashes' remains
+    assert is_camel_case(r"\ALLCAPS") is False
+    assert is_camel_case("\\") is True # becomes "", which is True
+    assert is_camel_case(r"\a") is True # becomes "a", which is True
+    assert is_camel_case(r"validNameWith\internalSlash") is False # internal slashes are not allowed by default
+
 # 3. Tests for validate_flow_name_camel_case(flow_name)
 @pytest.mark.parametrize("flow_name, expected", [
     # Valid names
@@ -194,6 +203,70 @@ def test_is_camel_case_basic():
     ('":suffix"', False), # Becomes ":suffix" if outer quotes are stripped, then "" before colon.
                          # current logic: name_to_validate = '":suffix"'. split by ':' -> '""'. validate '""' -> True
     ('name:"suffix"', True), # name_to_validate = "name". Valid.
+
+    # New test cases for HTTP Verb Prefixes
+    ("get:activeEmployees", True),
+    ("post:createOrder:order-config", True), # createOrder is valid
+    ("put:update_User:user-config", False), # update_User is invalid
+    ("delete:removeResource:some-details", True), # removeResource is valid
+
+    # New test cases for Suffixes
+    ("activeEmployees:some-config-suffix", True),
+    ("processData:another:config:here", True), # processData is valid
+    ("invalid_Name:config:suffix", False),
+    ("flowNameWithMultiple:Suffixes:LikeThis", True), # flowNameWithMultiple is valid
+
+    # New test cases for Leading Backslashes (interaction with is_camel_case change)
+    # The `validate_flow_name_camel_case` extracts the name, then `is_camel_case` handles the slash.
+    (r"\activeEmployees", True), # validate_flow_name_camel_case gets "activeEmployees", is_camel_case gets "\activeEmployees" -> True
+    (r"\processData:config", True), # validate_flow_name_camel_case gets "processData", is_camel_case gets "\processData" -> True
+    (r"\invalid_name:config", False),# validate_flow_name_camel_case gets "invalid_name", is_camel_case gets "\invalid_name" -> False
+    (r"get:\validFlow:config", True),   # validate_flow_name_camel_case gets "validFlow", is_camel_case gets "\validFlow" -> True
+    (r"post:\invalid_Flow:config", False), # validate_flow_name_camel_case gets "invalid_Flow", is_camel_case gets "\invalid_Flow" -> False
+    (r"get:\\doubleSlashFlow:config", False), # validate_flow_name_camel_case gets "\doubleSlashFlow", is_camel_case gets "\\doubleSlashFlow" -> False
+
+    # New test cases for Combinations
+    (r"get:\activeEmployees:hr-config", True),
+    ("post:process_Data:main-config", False), # process_Data is invalid
+
+    # Original examples from the issue description (assuming leading backslash for some based on context)
+    (r'get:\activeEmployees:abc-xyz-integrationservices-config', True),
+    (r'get:\terminatedEmployees:abc-xyz-integrationservices-config', True),
+    (r'get:\activeEmployeesfromDW:abc-xyz-integrationservices-config', True),
+    (r'get:\activeEmployeesfromLdap:abc-xyz-integrationservices-config', True),
+    (r'get:\sbsuEmployees:abc-xyz-integrationservices-config', True),
+    (r'get:\tandaEmployees:abc-xyz-integrationservices-config', True),
+    (r'get:\terminatedEmployeesfromDW:abc-xyz-integrationservices-config', True),
+    (r'get:\terminatedEmployeesfromLdap:abc-xyz-integrationservices-config', True),
+    (r'get:\tiksEmployees:abc-xyz-integrationservices-config', True),
+    (r'get:\leaveBalance:abc-xyz-integrationservices-config', True),
+    (r'get:\leaveBalanceFromDWH:abc-xyz-integrationservices-config', True),
+    (r'get:\hbt:abc-xyz-integrationservices-config', True), # hbt is valid camel case
+
+    # Ensure IGNORED_FLOW_NAMES still work correctly
+    # The IGNORED_FLOW_NAMES check is done on the original flow_name before any processing.
+    ("abc-xyz-integrationservices-main", True),
+    ("abc-xyz-integrationservices-console", True),
+    # If an ignored name has a prefix/suffix, it's NOT ignored by default by current logic unless the exact string is in IGNORED_FLOW_NAMES
+    ("get:abc-xyz-integrationservices-main:config", False), # "get:abc-xyz-integrationservices-main:config" is not in IGNORED_FLOW_NAMES, so "abc-xyz-integrationservices-main" is extracted and validated (False)
+    ("abc-xyz-integrationservices-main:some-config", False), # Not in ignored list, "abc-xyz-integrationservices-main" extracted and validated (False due to hyphens)
+
+    # Test cases where the part to validate itself might be a mime type or special string
+    ("get:application/json:myapi-config", True), # "application/json" is extracted, which is in COMMON_MIME_TYPES
+    ("post:text/plain:logging-config", True),   # "text/plain" is extracted, in COMMON_MIME_TYPES
+    ("update:\"quotedName\":config", True),       # "\"quotedName\"" extracted, then "quotedName" validated
+    ("verb:\"invalid_Name\":config", False),    # "\"invalid_Name\"" extracted, then "invalid_Name" validated
+
+    # Test cases ensuring prefix/suffix stripping doesn't make invalid names valid
+    ("get:invalid_NamePart:config", False),
+    ("invalid_NamePart:suffix", False),
+    (r"get:\invalid_NamePart:config", False),
+
+    # What if the "actual name" part is empty after stripping?
+    ("get::config", True), # name_to_validate becomes "", which is_camel_case returns True for.
+    ("::config", True),    # name_to_validate becomes "", which is_camel_case returns True for.
+    (r"get:\:config", True),# name_to_validate becomes "\", is_camel_case gets "\", becomes "", returns True.
+    (r"\:config", True),   # name_to_validate becomes "\", is_camel_case gets "\", becomes "", returns True.
 ])
 def test_validate_flow_name_camel_case(flow_name, expected, mock_logger_fixture):
     assert validate_flow_name_camel_case(flow_name) == expected
