@@ -10,6 +10,10 @@ from mule_validator.code_reviewer import review_mulesoft_code
 import logging
 logging.getLogger('mule_validator.code_reviewer').setLevel(logging.CRITICAL)
 
+# Import functions to be tested directly
+from mule_validator.code_reviewer import check_flow_names, is_camel_case
+import re # Added import for re
+
 class TestCodeReviewerSecurity(unittest.TestCase):
 
     def setUp(self):
@@ -203,6 +207,124 @@ class TestCodeReviewerSecurity(unittest.TestCase):
         self.assertIsNone(insecure_issue_secure_placeholder, 
                           "Secure properties key using a ${secure::...} placeholder should NOT be flagged by InsecurePropertyUseXML by current logic, though it's a misconfig.")
 
+class TestFlowNameConventionChecks(unittest.TestCase):
+    # Minimal namespaces needed for flow elements
+    NAMESPACES = {
+        'mule': 'http://www.mulesoft.org/schema/mule/core',
+        # Add other namespaces if your test XMLs use them for flow definitions
+    }
+
+    def _create_flow_xml_root(self, flow_name):
+        """Helper to create an lxml root element for a Mule config with one flow."""
+        xml_str = f"""<mule xmlns="http://www.mulesoft.org/schema/mule/core" version="EE_4.4.0">
+    <flow name="{flow_name}">
+        <logger level="INFO" message="Test flow"/>
+    </flow>
+</mule>"""
+        return etree.fromstring(xml_str.encode('utf-8'))
+
+    def test_apikit_flow_name_extraction_valid(self):
+        """Test valid flow names after APIkit prefix/suffix extraction."""
+        test_cases = {
+            "get:actualFlowName:some-config-suffix": "actualFlowName",
+            "post:anotherFlow": "anotherFlow",
+            "regularFlowName": "regularFlowName",
+            "put:flowNameWithNumbers123:config": "flowNameWithNumbers123",
+            "get:flow1:config1:extrapart": "flow1", # ensure it takes part between first and second colon
+            "patch:flowWithoutConfigSuffix": "flowWithoutConfigSuffix",
+            "get:flowContaining ColonButNotAtEnd:": "flowContaining ColonButNotAtEnd", # Trailing colon after main name part
+        }
+        for original_name, expected_part_to_check in test_cases.items():
+            with self.subTest(original_name=original_name):
+                root = self._create_flow_xml_root(original_name)
+                issues = check_flow_names(root, self.NAMESPACES)
+
+                # Check if the expected part is camel case (it should be for these valid cases)
+                self.assertTrue(is_camel_case(expected_part_to_check), f"Test case setup error: '{expected_part_to_check}' is not camel case.")
+
+                found_issue_for_name = any(original_name in issue for issue in issues)
+                self.assertFalse(found_issue_for_name,
+                                 f"Expected no issues for flow '{original_name}' (checking part '{expected_part_to_check}'). Issues: {issues}")
+
+    def test_apikit_flow_name_extraction_invalid_camel_case(self):
+        """Test flow names that are invalid camel case after APIkit prefix/suffix extraction."""
+        test_cases = {
+            "get:Invalid-Flow-Name:config": "Invalid-Flow-Name",
+            # "post:nonCamel": "nonCamel", # This was actually valid camelCase.
+            "post:NonCamelStart:config": "NonCamelStart", # Starts with uppercase
+            "delete:flow_with_underscores:suffix": "flow_with_underscores",
+        }
+        for original_name, part_to_check in test_cases.items():
+            with self.subTest(original_name=original_name):
+                root = self._create_flow_xml_root(original_name)
+                issues = check_flow_names(root, self.NAMESPACES)
+                expected_message_part = f"Flow name part '{part_to_check}' (from original: '{original_name}') does not comply with camel case format."
+                self.assertTrue(any(expected_message_part in issue for issue in issues),
+                                f"Expected camel case issue for '{part_to_check}' from '{original_name}'. Issues: {issues}")
+
+    def test_apikit_flow_name_extraction_invalid_characters(self):
+        """Test flow names with invalid characters after APIkit prefix/suffix extraction."""
+        test_cases = {
+            "get:flow-with-hyphens:config": "flow-with-hyphens", # Already covered by camel case, but good for char check too
+            "put:flow@symbol:suffix": "flow@symbol",
+        }
+        for original_name, part_to_check in test_cases.items():
+            with self.subTest(original_name=original_name):
+                root = self._create_flow_xml_root(original_name)
+                issues = check_flow_names(root, self.NAMESPACES)
+
+                # Check for non-alphanumeric if not camel case (as camel case implies alphanumeric for the main part)
+                # The rule is "alphanumeric" AND "camelCase". Non-camelCase often implies invalid chars.
+                # If it fails camelCase, that's one error. If it also has non-alphanumeric, that's another.
+                # The current implementation checks camelCase first, then for invalid characters.
+                # Let's assume the primary error reported would be about camel case if that fails.
+                # If camel case passes but chars are wrong (e.g. starts lowercase, but contains '#')
+
+                expected_char_message_part = f"Flow name part '{part_to_check}' (from original: '{original_name}') contains invalid characters. It should be alphanumeric."
+
+                # If it's not camel case, that error might appear first or instead.
+                # For this test, let's ensure the part_to_check would fail the regex ^[a-zA-Z0-9]+$
+                self.assertFalse(re.match(r'^[a-zA-Z0-9]+$', part_to_check), f"Test setup: {part_to_check} IS alphanumeric.")
+
+                if not is_camel_case(part_to_check):
+                    expected_camel_message_part = f"Flow name part '{part_to_check}' (from original: '{original_name}') does not comply with camel case format."
+                    self.assertTrue(
+                        any(expected_camel_message_part in issue for issue in issues) or \
+                        any(expected_char_message_part in issue for issue in issues),
+                        f"Expected camel case or invalid char issue for '{part_to_check}' from '{original_name}'. Issues: {issues}"
+                    )
+                else: # Passes camel case but fails character check (e.g. "validStart@oops")
+                    self.assertTrue(any(expected_char_message_part in issue for issue in issues),
+                                f"Expected invalid char issue for '{part_to_check}' from '{original_name}'. Issues: {issues}")
+
+
+    def test_apikit_flow_name_extraction_empty_part(self):
+        """Test flow names that result in an empty part to check."""
+        test_cases = [
+            "delete::config",   # Original: "delete::config", part to check: ""
+            "patch::",          # Original: "patch::", part to check: ""
+            "http:",            # Original: "http:", part to check: "" (if logic leads to this)
+            "get::",
+        ]
+        for original_name in test_cases:
+            with self.subTest(original_name=original_name):
+                root = self._create_flow_xml_root(original_name)
+                issues = check_flow_names(root, self.NAMESPACES)
+                expected_message = f"Flow name '{original_name}' results in an empty part for validation after APIkit prefix/suffix removal."
+                self.assertTrue(any(expected_message == issue for issue in issues), # Exact match for this specific error
+                                f"Expected empty part issue for '{original_name}'. Issues: {issues}")
+
+    def test_flow_name_missing_attribute(self):
+        """Test a flow element that is missing the 'name' attribute."""
+        xml_str = """<mule xmlns="http://www.mulesoft.org/schema/mule/core" version="EE_4.4.0">
+    <flow> <!-- No name attribute -->
+        <logger level="INFO" message="Test flow"/>
+    </flow>
+</mule>"""
+        root = etree.fromstring(xml_str.encode('utf-8'))
+        issues = check_flow_names(root, self.NAMESPACES)
+        self.assertTrue(any("Flow is missing a name attribute." == issue for issue in issues),
+                        f"Expected missing name attribute issue. Issues: {issues}")
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
