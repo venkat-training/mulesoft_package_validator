@@ -12,6 +12,9 @@ from mule_validator.configfile_validator import validate_yaml_file
 import logging
 logging.getLogger('mule_validator.configfile_validator').setLevel(logging.CRITICAL)
 
+# Import the function actually modified and tested
+from mule_validator.configfile_validator import check_yaml_content_rules
+
 class TestConfigFileValidatorSecurity(unittest.TestCase):
 
     def setUp(self):
@@ -143,6 +146,81 @@ class TestConfigFileValidatorSecurity(unittest.TestCase):
         file_path = self._write_temp_yaml_file("comments_only.yaml", content_str="# This is a comment\n# So is this")
         results = validate_yaml_file(file_path)
         self.assertEqual(len(results), 0, f"Expected 0 issues for a comments-only YAML, got: {results}")
+
+    # New tests for check_yaml_content_rules related to recent changes
+
+    def test_filename_recognition_no_warning(self):
+        """Test that values resembling filenames with sensitive keywords in key are not warned."""
+        test_cases = {
+            "keystore.jks": {"https.keystore.file": "eimulegen_keystore.jks"},
+            "truststore.pem": {"ssl.truststore.path": "/var/certs/client.pem"},
+            "certificate.cer": {"tls.certificate": "my_company.cer"},
+            "privatekey.p12": {"client.auth.key": "path/to/pk.p12"},
+            "some.properties": {"app.config.file": "override.properties"},
+        }
+        for filename_value, content_dict in test_cases.items():
+            file_path = self._write_temp_yaml_file(f"test_{filename_value.replace('.', '_')}.yaml", content_dict=content_dict)
+
+            # Test with project_uses_secure_properties = True
+            issues_true = check_yaml_content_rules(file_path, project_uses_secure_properties=True)
+            for issue in issues_true:
+                self.assertNotIn("contains sensitive keyword", issue,
+                                 f"Should not warn for {filename_value} when project_uses_secure_properties=True. Issue: {issue}")
+
+            # Test with project_uses_secure_properties = False
+            issues_false = check_yaml_content_rules(file_path, project_uses_secure_properties=False)
+            for issue in issues_false:
+                self.assertNotIn("may contain plaintext sensitive data", issue,
+                                 f"Should not warn for {filename_value} when project_uses_secure_properties=False. Issue: {issue}")
+                self.assertNotIn("contains sensitive keyword", issue, # General check
+                                 f"Should not warn for {filename_value} when project_uses_secure_properties=False. Issue: {issue}")
+
+
+    def test_sensitive_key_non_filename_should_warn(self):
+        """Test that a sensitive key with a non-filename value still warns."""
+        yaml_content = {"credentials.password": "thisisaplainpassword"}
+        file_path = self._write_temp_yaml_file("sensitive_non_filename.yaml", content_dict=yaml_content)
+
+        issues_true = check_yaml_content_rules(file_path, project_uses_secure_properties=True)
+        self.assertTrue(any("contains sensitive keyword 'password'" in issue and "has a plaintext value" in issue for issue in issues_true),
+                        f"Expected warning for plaintext password with secure properties enabled. Issues: {issues_true}")
+
+        issues_false = check_yaml_content_rules(file_path, project_uses_secure_properties=False)
+        self.assertTrue(any("contains sensitive keyword 'password'" in issue and "may contain plaintext sensitive data" in issue for issue in issues_false),
+                        f"Expected warning for plaintext password with secure properties disabled. Issues: {issues_false}")
+
+    def test_suppress_info_for_encrypted_values(self):
+        """Test that INFO messages for Mule encrypted values are suppressed."""
+        yaml_content = {"api.key": "![encryptedValue]", "user.token": "![anotherEncryptedValue]"}
+        file_path = self._write_temp_yaml_file("encrypted_values_info_suppressed.yaml", content_dict=yaml_content)
+
+        issues = check_yaml_content_rules(file_path, project_uses_secure_properties=True)
+        for issue in issues:
+            self.assertNotIn("INFO: Key", issue, f"INFO message for encrypted value should be suppressed. Got: {issue}")
+
+        # Sanity check: ensure no other unexpected warnings for these keys
+        self.assertEqual(len(issues), 0, f"Expected 0 issues for properly encrypted values with info suppressed. Got: {issues}")
+
+
+    def test_warning_for_encrypted_value_if_secure_properties_not_used(self):
+        """Test that a WARNING is issued for encrypted values if project does not use secure properties."""
+        yaml_content = {"database.password": "![encryptedPass]", "service.secret": "![someSecretDataValue]"}
+        file_path = self._write_temp_yaml_file("encrypted_values_warning_no_secure_props.yaml", content_dict=yaml_content)
+
+        issues = check_yaml_content_rules(file_path, project_uses_secure_properties=False)
+
+        password_warning_found = any("WARNING: Key 'database.password' has a Mule encrypted value, but Mule Secure Properties configuration was not detected project-wide." in issue for issue in issues)
+        secret_warning_found = any("WARNING: Key 'service.secret' has a Mule encrypted value, but Mule Secure Properties configuration was not detected project-wide." in issue for issue in issues)
+
+        self.assertTrue(password_warning_found, f"Missing expected WARNING for database.password. Issues: {issues}")
+        self.assertTrue(secret_warning_found, f"Missing expected WARNING for service.secret. Issues: {issues}")
+
+        # Ensure no INFO messages are present
+        for issue in issues:
+            self.assertNotIn("INFO: Key", issue, f"INFO message for encrypted value should be suppressed even if warning. Got: {issue}")
+
+        self.assertEqual(len(issues), 2, f"Expected exactly 2 warnings. Got: {issues}")
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

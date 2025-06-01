@@ -48,10 +48,28 @@ def check_flow_names(root, namespaces):
         name = flow.get("name")
         if not name:
             issues.append("Flow is missing a name attribute.")
-        elif not is_camel_case(name):
-            issues.append(f"Flow name '{name}' does not comply with camel case format.")
-        elif not re.match(r'^[a-zA-Z0-9]+$', name):
-            issues.append(f"Flow name '{name}' contains invalid characters.")
+        else:
+            name_to_check = name
+            first_colon_idx = name.find(':')
+            if first_colon_idx != -1:
+                # Part after the first colon
+                substring_after_first_colon = name[first_colon_idx+1:]
+                second_colon_idx = substring_after_first_colon.find(':')
+                if second_colon_idx != -1:
+                    # There is a second colon, take the part between the first and second
+                    name_to_check = substring_after_first_colon[:second_colon_idx]
+                else:
+                    # No second colon, take the whole part after the first colon
+                    name_to_check = substring_after_first_colon
+
+            # It's possible name_to_check is empty if the format is like "get::config" or "http:"
+            # Add a check to ensure name_to_check is not empty before validation
+            if not name_to_check:
+                issues.append(f"Flow name '{name}' results in an empty part for validation after APIkit prefix/suffix removal.")
+            elif not is_camel_case(name_to_check):
+                issues.append(f"Flow name part '{name_to_check}' (from original: '{name}') does not comply with camel case format.")
+            elif not re.match(r'^[a-zA-Z0-9]+$', name_to_check):
+                issues.append(f"Flow name part '{name_to_check}' (from original: '{name}') contains invalid characters. It should be alphanumeric.")
     return issues
 
 def check_http_listener(root, namespaces):

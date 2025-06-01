@@ -110,7 +110,8 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
                 # Value is Mule encrypted.
                 if project_uses_secure_properties:
                     # This is expected and good practice if the project uses secure properties.
-                    issues.append(f"INFO: Key '{current_full_key_name}' has a Mule encrypted value. Length (encrypted part): {len(value_str[2:-1])}.")
+                    # issues.append(f"INFO: Key '{current_full_key_name}' has a Mule encrypted value. Length (encrypted part): {len(value_str[2:-1])}.")
+                    pass # Suppressing INFO message as per request
                 else:
                     # This is unusual: value is encrypted, but no secure properties config was found project-wide.
                     # This might indicate a misconfiguration or an incomplete setup.
@@ -122,17 +123,24 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
             # Keyword-based check for sensitive data (only if not already Mule encrypted).
             # This avoids redundant warnings if a sensitive key is already properly encrypted.
             if not is_mule_encrypted:
-                key_lower = current_full_key_name.lower()
-                for keyword in SENSITIVE_KEYWORDS:
-                    if keyword in key_lower:
-                        # The key name itself suggests sensitivity (e.g., "password", "api.key").
-                        if project_uses_secure_properties:
-                            # Project supports encryption, but this specific sensitive key has a plaintext value.
-                            issues.append(f"WARNING: Key '{current_full_key_name}' (contains sensitive keyword '{keyword}') has a plaintext value, but the project supports Mule encryption. Consider encrypting. Value excerpt: '{value_str[:10]}...'")
-                        else:
-                            # Project does not support encryption, and this sensitive key has a plaintext value. High risk.
-                            issues.append(f"WARNING: Key '{current_full_key_name}' (contains sensitive keyword '{keyword}') may contain plaintext sensitive data, and the project does not appear to use Mule encryption. Value excerpt: '{value_str[:10]}...'")
-                        break # Found one sensitive keyword match for this key, no need to check others.
+                # Add filename check here
+                value_lower = value_str.lower()
+                # Define common file extensions
+                file_extensions = ('.jks', '.pem', '.cer', '.p12', '.keystore', '.properties')
+                is_filename = value_lower.endswith(file_extensions)
+
+                if not is_filename: # Only proceed if it's not identified as a filename
+                    key_lower = current_full_key_name.lower()
+                    for keyword in SENSITIVE_KEYWORDS:
+                        if keyword in key_lower:
+                            # The key name itself suggests sensitivity (e.g., "password", "api.key").
+                            if project_uses_secure_properties:
+                                # Project supports encryption, but this specific sensitive key has a plaintext value.
+                                issues.append(f"WARNING: Key '{current_full_key_name}' (contains sensitive keyword '{keyword}') has a plaintext value, but the project supports Mule encryption. Consider encrypting. Value excerpt: '{value_str[:10]}...'")
+                            else:
+                                # Project does not support encryption, and this sensitive key has a plaintext value. High risk.
+                                issues.append(f"WARNING: Key '{current_full_key_name}' (contains sensitive keyword '{keyword}') may contain plaintext sensitive data, and the project does not appear to use Mule encryption. Value excerpt: '{value_str[:10]}...'")
+                            break # Found one sensitive keyword match for this key, no need to check others.
 
     _find_issues_in_yaml_data(data) # Start the recursive check from the root of the YAML data.
     return issues
