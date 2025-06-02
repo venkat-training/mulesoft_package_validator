@@ -2,6 +2,11 @@
 <html>
 <head>
     <title>Mule Validation Report</title>
+    <p style="text-align: center;">
+    <strong>Report Generated:</strong> {{report_end_time}}<br>
+    <strong>Validation Started:</strong> {{report_start_time}}<br>
+    <strong>Duration:</strong> {{report_duration}}
+    </p>    
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -18,6 +23,12 @@
             border-bottom: 2px solid #ddd;
             padding-bottom: 5px;
             margin-top: 30px;
+        }
+        .section-desc {
+            color: #888;
+            font-size: 0.98em;
+            margin-bottom: 10px;
+            margin-top: -18px;
         }
         table {
             width: 100%;
@@ -56,33 +67,59 @@
         <p style="text-align: center;"><strong>Git Branch:</strong> {{git_branch_name}}</p>
 
         <h2>Code Review Issues</h2>
+        <p class="section-desc">
+            Highlights potential code quality, best practice, or anti-pattern issues found in Mule flow XML files.
+        </p>
         <div id="code-review-issues">
             {{code_review_issues_table}}
         </div>
 
         <h2>YAML Validation Results</h2>
+        <p class="section-desc">
+            Checks YAML configuration files for syntax errors, schema violations, or missing required fields.
+        </p>
         <div id="yaml-validation-results">
             {{yaml_validation_results_table}}
         </div>
 
         <h2>Dependency Validation Results</h2>
+        <p class="section-desc">
+            Validates Maven dependencies by checking for missing, unresolved, or duplicate dependencies in all <code>pom.xml</code> files.
+        </p>
         <div id="dependency-validation-results">
             {{dependency_validation_results_table}}
         </div>
 
         <h2>Flow Validation Results</h2>
+        <p class="section-desc">
+            Analyzes Mule flows and sub-flows for complexity, size, and best practices (e.g., too many flows, sub-flows, or components).
+        </p>
         <div id="flow-validation-results">
             {{flow_validation_results_table}}
         </div>
 
         <h2>API Validation Results</h2>
+        <p class="section-desc">
+            Validates API specifications and their implementation, ensuring RAML/OAS files are present and APIkit routers/configs are correctly set up.
+        </p>
         <div id="api-validation-results">
             {{api_validation_results_table}}
         </div>
         
         <h2>Project Uses Mule Secure Properties</h2>
+        <p class="section-desc">
+            Checks if the project uses Mule Secure Properties for sensitive configuration values, promoting secure handling of secrets.
+        </p>
         <div id="secure-properties-results">
             {{secure_properties_status}}
+        </div>
+
+        <h2>Logging Validation Results</h2>
+        <p class="section-desc">
+            Reviews logger usage in flows and the Log4j configuration for risky patterns (e.g., too many loggers, DEBUG/TRACE levels in production).
+        </p>
+        <div id="logging-validation-results">
+            {{logging_validation_results_table}}
         </div>
     </div>
 </body>

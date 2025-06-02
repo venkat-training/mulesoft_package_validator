@@ -119,6 +119,31 @@ def generate_html_report(all_results, template_string):
     else:
         html_content = html_content.replace('{{secure_properties_status}}', "<p>No secure properties validation result.</p>")
 
+    # 7. Logging Validation Results
+    logging_results = all_results.get('logging_validation')
+    if isinstance(logging_results, dict) and (logging_results.get("logger_issues") or logging_results.get("log4j_warnings")):
+        log_html = ""
+        # Logger issues
+        logger_issues = logging_results.get("logger_issues")
+        if logger_issues:
+            # If logger_issues is a list of dicts, tabulate as table
+            if isinstance(logger_issues, list) and logger_issues and isinstance(logger_issues[0], dict):
+                headers = list(logger_issues[0].keys())
+                table_data = [[item.get(h, '') for h in headers] for item in logger_issues]
+                log_html += "<h4>Logger Issues</h4>"
+                log_html += tabulate(table_data, headers=headers, tablefmt='html')
+            else:
+                log_html += "<h4>Logger Issues</h4>"
+                log_html += _format_data_to_html(logger_issues)
+        # Log4j warnings
+        log4j_warnings = logging_results.get("log4j_warnings")
+        if log4j_warnings:
+            log_html += "<h4>Log4j Warnings</h4>"
+            log_html += _format_data_to_html(log4j_warnings)
+        html_content = html_content.replace('{{logging_validation_results_table}}', log_html)
+    else:
+        html_content = html_content.replace('{{logging_validation_results_table}}', "<p>No logging issues found.</p>")
+
     # Fallback for any placeholders not explicitly handled, to avoid them showing in the report
     html_content = html_content.replace('{{code_review_issues_table}}', "<p>Data not available.</p>")
     html_content = html_content.replace('{{yaml_validation_results_table}}', "<p>Data not available.</p>")
@@ -126,10 +151,15 @@ def generate_html_report(all_results, template_string):
     html_content = html_content.replace('{{flow_validation_results_table}}', "<p>Data not available.</p>")
     html_content = html_content.replace('{{api_validation_results_table}}', "<p>Data not available.</p>")
     html_content = html_content.replace('{{secure_properties_status}}', "<p>Data not available.</p>")
+    html_content = html_content.replace('{{logging_validation_results_table}}', "<p>Data not available.</p>")
 
     # Add Git branch name
-    branch_name = get_current_git_branch()
+    branch_name = all_results.get('git_branch_name', 'Unknown')
     html_content = html_content.replace('{{git_branch_name}}', branch_name)
-    html_content = html_content.replace('{{git_branch_name}}', "<p>Git branch: Unknown</p>")
+    
+    # Add report start and end time
+    html_content = html_content.replace('{{report_start_time}}', all_results.get('report_start_time', 'N/A'))
+    html_content = html_content.replace('{{report_end_time}}', all_results.get('report_end_time', 'N/A'))
+    html_content = html_content.replace('{{report_duration}}', all_results.get('report_duration', 'N/A'))
 
     return html_content
