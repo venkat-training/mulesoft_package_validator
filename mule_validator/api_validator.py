@@ -1,3 +1,10 @@
+"""
+Validates API specifications and APIkit router configurations in MuleSoft projects.
+
+This module checks for adherence to specific patterns for API specification inclusion
+(as a RAML.zip dependency in pom.xml) and APIkit router setup within the Mule
+application's XML configuration files.
+"""
 import os
 import xml.etree.ElementTree as ET
 import logging
@@ -15,25 +22,48 @@ API_SPEC_DEP_TYPE = "zip"
 
 def validate_api_spec_and_flows(package_folder_path):
     """
-    Validates the presence of API specifications and APIkit router configuration in a MuleSoft package,
-    following the enterprise packaging pattern used by your company.
+    Validates API specifications and APIkit router configurations in a MuleSoft package.
 
-    - API spec is included as a dependency (raml.zip) in pom.xml (not as a JAR, not in src/main/resources/api).
-    - The raml.zip file should be present in the target/ directory after a successful build.
-    - APIkit router/config is defined in packagename.xml in src/main/mule.
+    This function checks for:
+    1.  API specification dependency: Verifies that the API specification (RAML) is included
+        as a specific Maven dependency (classifier "raml", type "zip") in the `pom.xml` file.
+    2.  API specification artifact: Ensures the corresponding RAML ZIP artifact, generated from
+        the dependency, is present in the `target/` directory, implying a successful build.
+    3.  APIkit router configuration: Confirms that an APIkit router or configuration
+        is defined within the expected Mule XML configuration file (e.g., `packagename.xml`)
+        located in `src/main/mule/`.
+
+    Assumptions:
+        - The MuleSoft project follows a Maven-based structure.
+        - The API specification is a RAML file, packaged as a ZIP.
+        - A successful `mvn clean install` or equivalent build process populates the `target/` directory.
+        - The main Mule configuration file containing the APIkit router is named after the package
+          (e.g., if the package is `my-api`, the file is `my-api.xml`).
 
     Args:
-        package_folder_path (str): The path to the MuleSoft package folder.
+        package_folder_path (str): The absolute or relative path to the root
+            directory of the MuleSoft package.
 
     Returns:
-        dict: Validation status of API spec dependency and APIkit router config, including notes for missing elements.
+        dict: A dictionary containing validation results:
+            - 'api_spec_dependency' (str | None): The Maven dependency string for the API
+              specification if found (e.g., "group:artifact:version:raml:zip"), otherwise None.
+            - 'api_spec_zip_found' (bool): True if the RAML ZIP artifact is found in the
+              `target/` directory, False otherwise.
+            - 'apikit_router_file' (str | None): The name of the Mule configuration file
+              expected to contain the APIkit router (e.g., "packagename.xml"), or the actual
+              file name if found with a router. None if the primary expected file is not found.
+            - 'apikit_router_found' (bool): True if an APIkit router or configuration
+              is found in the identified Mule XML file, False otherwise.
+            - 'notes' (list[str]): A list of human-readable messages detailing
+              any validation failures or missing elements.
     """
     logger.info(f"Starting API spec and APIkit router validation for package: {package_folder_path}")
     validation_results = {
-        'api_spec_dependency': None,      # The dependency string if found, else None
-        'api_spec_zip_found': False,      # True if the raml.zip is found in target/
-        'apikit_router_file': None,       # The Mule config file containing APIkit router, if found
-        'apikit_router_found': False,     # True if APIkit router/config is found
+        'api_spec_dependency': None,
+        'api_spec_zip_found': False,
+        'apikit_router_file': None,
+        'apikit_router_found': False,
         'notes': []
     }
 

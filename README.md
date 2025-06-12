@@ -1,91 +1,107 @@
 # Mule Package Validator
 
-This Python utility validates a MuleSoft package for dependency management, flow/component count, and API specifications.
+This Python utility validates a MuleSoft package for dependency management, flow/component count, API specifications, configuration files, code quality, and logging practices.
 
 ## Features
 
-- **Dependency Validation**: Checks for unused dependencies and verifies build size against MuleSoft CloudHub deployment limits.
-- **Flow Validation**:
-    - Validates the number of flows, sub-flows, and components in the MuleSoft package.
-    - Implements enhanced flow name validation, including camel case checks with configurable rules (e.g., ignoring specific flow names like "abc-xyz-integrationservices-main", considering only text between final `"` and before `:`, and handling embedded mime types like "text/csv").
-- **Configuration File Validation**:
-    - Checks YAML configuration files (e.g., `config-prod.yaml`, `config-nonprod.yaml`) to ensure that the same keys do not have identical values across different environment files, promoting environment-specific configurations.
-    - Ignores certain content warnings for YAML keys that clearly represent file names or paths (e.g., `empDbSnowflake.keyFile`), reducing false positives for rules like generic secret patterns or sensitive keyword detection in keys when the value is a path.
-- **API Validation**: Ensures the presence of API specifications and API definition flows.
-- **HTML Report Generation**:
-    - Optionally generates a comprehensive HTML report of all validation results.
-    - The report now includes the Git branch name from which the validation was run, providing better context for the results.
-    - The standard console output remains available.
+-   **Dependency Validation**:
+    *   Checks for unused dependencies by comparing `pom.xml` entries against their usage in Mule configuration files.
+    *   Verifies build size against configurable limits (relevant for environments like MuleSoft CloudHub).
+    *   Scans `pom.xml` files for hardcoded secrets or sensitive information within properties, plugin configurations, etc.
 
-## MuleSoft Secure Property Awareness
+-   **Flow Validation**:
+    *   Validates the number of flows, sub-flows, and components in the MuleSoft package against configurable thresholds.
+    *   Implements enhanced flow name validation, including camel case checks with specific rules (e.g., handling of HTTP verb prefixes, APIkit-style suffixes, quoted names, backslashes), ignoring certain common substrings (e.g., "-main", "-console"), and correctly identifying common MIME types as valid names.
 
-The validator now includes features to intelligently handle MuleSoft's secure property configurations:
+-   **Configuration File Validation (YAML)**:
+    *   Checks YAML configuration files (e.g., `config-prod.yaml`, `config-nonprod.yaml`) for syntax validity.
+    *   Scans for plaintext secrets using keyword and pattern matching.
+    *   Compares environment-specific configuration files (e.g., prod vs. nonprod) to detect keys that are expected to differ (hostnames, IPs, passwords, URLs, etc.) but have identical values.
+    *   Reduces false positives for secret detection by recognizing filename/path contexts for certain keys.
 
--   **Automatic Detection:** The validator automatically detects if your MuleSoft project is configured to use MuleSoft's standard secure properties by looking for the `<secure-properties:config ... />` element in your Mule XML configuration files.
--   **Smarter Validation:** When secure property usage is detected project-wide, the validator adjusts its behavior for certain checks in YAML configuration files to reduce false positives and provide more relevant feedback:
-    -   **Generic Secret Patterns:** If a property value is encrypted using the MuleSoft format (e.g., `my.secret: "![encryptedValue]"`), the validator will not flag the encrypted content as a potential leaked secret. Instead, it will issue an informational message acknowledging that the value is encrypted.
-    -   **Sensitive Keywords in Property Names:** If a property name contains sensitive keywords (like `password`, `apiKey`, `secret`, `token`), and its value is correctly encrypted in the `![...]` format, the validator will treat this appropriately, often issuing an informational message instead of a high-severity warning for plaintext exposure.
--   **Example Informational Messages:** With this feature, you might see messages like:
-    -   `INFO: Key 'some.key.name' has Mule encrypted value. Length: XX.`
-    -   `INFO: Key 'db.password' (sensitive keyword) has Mule encrypted value.` (This specific message format might vary slightly based on the exact check that identifies it, but the intent is to inform about secured sensitive keys).
--   **Benefit:** This enhancement makes the validator more accurate for projects that correctly implement MuleSoft's secure property mechanism. It helps distinguish between actual plaintext secrets and properly secured configurations, leading to more actionable validation results.
+-   **API Validation**:
+    *   Verifies that API specifications (e.g., RAML, OpenAPI) are correctly included as Maven dependencies in `pom.xml`.
+    *   Ensures the API specification artifact (e.g., RAML ZIP) is present in the `target/` directory after a build.
+    *   Checks for the presence of APIkit router configurations within the main Mule application XML file.
+
+-   **Code Review**:
+    *   Performs various checks on Mule XML configuration files:
+        *   **Flow Naming Conventions**: Validates flow names based on the rules described in "Flow Validation".
+        *   **Component Configurations**: Ensures common components (e.g., HTTP Listeners, Loggers, DataWeave transformations, HTTP Requesters, various connectors) have essential attributes defined (e.g., HTTP Listener `path`, Logger `message`, Requester `url`).
+    *   **MuleSoft Secure Property Awareness**:
+        *   Automatically detects if the project uses MuleSoft's standard secure properties (`<secure-properties:config>`).
+        *   Adjusts YAML content validation based on this:
+            *   Encrypted values (`![...]`) in YAML are not flagged as plaintext secrets if secure properties are enabled project-wide (otherwise, a warning is issued about using encryption without configuration).
+            *   Provides more relevant feedback for sensitive keywords in YAML if values are not encrypted but secure properties are available.
+
+-   **Logs Validation**:
+    *   Checks Mule XML files for logger component best practices:
+        *   Flags flows with an excessive number of `<logger>` components.
+        *   Identifies usage of "DEBUG" level loggers.
+        *   Warns about "ERROR" level loggers found outside of recognized error handler scopes (based on a heuristic check of parent elements).
+    *   Analyzes `log4j2.xml` for risky root logger configurations (e.g., DEBUG, TRACE, INFO levels in production configurations).
+
+-   **HTML Report Generation**:
+    *   Optionally generates a comprehensive HTML report of all validation results.
+    *   The report includes the Git branch name (if available) from which the validation was run, and timing information (start, end, duration).
+    *   Standard console output remains available.
 
 ## Installation
 
 Clone this repository and navigate to the project directory:
 
 ```bash
-git clone https://github.com/your-repo/mule_package_validator.git
+git clone https://github.com/your-repo/mule_package_validator.git # Replace with your actual repository URL
 cd mule_package_validator
+pip install -e .
+```
+This installs the package in editable mode. Python will be able to find the `mule_validator` modules.
 
-## To use the utility in your CI/CD pipeline, simply import the necessary module and call the function
-
-from mule_validator.dependency_validator import validate_dependencies_and_size
-
-package_folder_path = '/path/to/mulesoft/package'
-build_folder_path = '/path/to/build/folder'
-
-result = validate_dependencies_and_size(package_folder_path, build_folder_path)
-print(result)
+*Note: If you encounter installation issues, you might need to upgrade pip and setuptools (`pip install --upgrade pip setuptools`) or, in some environments, try `pip install -e . --use-pep517`.*
 
 ## Using `main.py` for Comprehensive Validation
 
-The `main.py` script is the primary entry point to run all available validations on your MuleSoft package.
+The `mule_validator/main.py` script is the primary entry point to run all available validations on your MuleSoft package. It requires Maven to be installed and accessible in your system's PATH to perform a build (`mvn clean install -DskipTests`) before validation.
 
 **Basic Usage:**
 
-First, ensure your `PYTHONPATH` is set up correctly if you haven't installed the package:
+Navigate to the cloned `mule_package_validator` directory (or ensure it's in your PYTHONPATH) and run:
 
-On Unix or macOS:
 ```bash
-export PYTHONPATH=.
-python main.py /path/to/your/mulesoft/project
+python -m mule_validator.main /path/to/your/mulesoft/project
 ```
-
-On Windows:
-```bash
-set PYTHONPATH=.
-python main.py C:\path\to\your\mulesoft\project
-```
+*(Using `python -m mule_validator.main` is a robust way to invoke the main module after installation.)*
 
 This will run all validations and print the results to the console.
 
-**Generating an HTML Report:**
+**Command-Line Arguments:**
 
-To generate an HTML report in addition to the console output, use the `--report-file` argument:
+The `main.py` script accepts several command-line arguments to customize its behavior:
+
+*   `package_folder_path`: (Required) The file system path to the root of the MuleSoft project to validate.
+*   `--report-file REPORT_FILE`: (Optional) The path to save the HTML validation report. If provided, an HTML report will be generated.
+    *   Example: `--report-file validation_report.html`
+*   `--build-folder-path BUILD_FOLDER_PATH`: (Optional) The path to the MuleSoft build folder (e.g., the directory containing the `target/` directory, typically the same as `package_folder_path`). If not provided, it defaults to `package_folder_path`.
+*   `--max-build-size-mb MAX_BUILD_SIZE_MB`: (Optional) Maximum allowed build size in MB for the `target` directory.
+    *   Default: `100` MB. (Note: This check is currently illustrative as `dependency_validator.calculate_build_size` is not directly integrated into `main.py`'s threshold reporting yet.)
+*   `--max-flows MAX_FLOWS`: (Optional) Maximum allowed total number of flows in the package.
+    *   Default: `100`.
+*   `--max-sub-flows MAX_SUB_FLOWS`: (Optional) Maximum allowed total number of sub-flows in the package.
+    *   Default: `50`.
+*   `--max-components MAX_COMPONENTS`: (Optional) Maximum allowed total number of components within all flows and sub-flows.
+    *   Default: `500`.
+
+**Example with HTML Report and Custom Thresholds:**
 
 ```bash
-python main.py /path/to/your/mulesoft/project --report-file validation_report.html
+python -m mule_validator.main /path/to/your/mulesoft/project --report-file report.html --max-flows 120 --max-components 600
 ```
-This will execute all validations, print results to the console, and also save a detailed HTML report to `validation_report.html` in the current directory. The HTML report offers a more structured and user-friendly view of the validation outcomes, making it easier to share and review.
+This will execute all validations with custom thresholds for flows and components, print results to the console, and save a detailed HTML report to `report.html`.
 
-**Installation for Easier Usage:**
+## Contributing
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-You can also install your project as an editable package using pip. This allows Python to recognize the package without adjusting PYTHONPATH.
+Please make sure to update tests as appropriate.
 
-Navigate to your project directory and run:
-pip install -e . --use-pep517
-
-pip install -e .
-
-pip install --upgrade setuptools
+## License
+[MIT](https://choosealicense.com/licenses/mit/)
