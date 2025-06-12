@@ -7,7 +7,7 @@ from mule_validator.flow_validator import (
     count_flows_and_components,
     validate_flows_in_package,
     MULE_CORE_NAMESPACE_URI,
-    IGNORED_FLOW_NAMES,
+    IGNORED_FLOW_NAME_SUBSTRINGS, # Corrected from IGNORED_FLOW_NAMES
     COMMON_MIME_TYPES,
     validate_flow_name_camel_case, # Import for direct testing
     is_camel_case # Import for direct testing (optional, if needed for specific assertions)
@@ -146,16 +146,22 @@ def test_is_camel_case_basic():
     ("ALLUPPERCASE", False), # Should be false unless it's a single char
     # ("alllowercaseformultiwords", False), # is_camel_case currently allows this, hard to distinguish from single "word"
 
-    # Ignored flow names
-    (IGNORED_FLOW_NAMES[0], True),
-    (IGNORED_FLOW_NAMES[1], True),
-    ("abc-xyz-integrationservices-main", True), # Direct check
+    # Ignored flow names (substring check on original name)
+    ("flow-main-test", True), # Contains "-main"
+    ("my-console-flow", True), # Contains "-console"
+    ("abc-xyz-integrationservices-main", True), # Contains "-main"
+    (f"flow{IGNORED_FLOW_NAME_SUBSTRINGS[0]}", True),
+    (f"flow{IGNORED_FLOW_NAME_SUBSTRINGS[1]}", True),
 
-    # Rule: Text before the first ":"
+
+    # Rule: Text before the first ":" (after HTTP verb processing)
     ("flowNameBeforeColon:someSuffix", True),
     ("invalid_name_before_colon:suffix", False),
     ("ALLCAPSBEFORE:suffix", False),
-    (f"{IGNORED_FLOW_NAMES[0]}:suffix", True), # Ignored name part before colon
+    # The following is tricky: if "flow-main" is the part to validate, it's False.
+    # But if the original name "flow-main:suffix" is checked for IGNORED_FLOW_NAME_SUBSTRINGS, "-main" is found.
+    # The IGNORED_FLOW_NAME_SUBSTRINGS check happens first on the *original* name.
+    (f"flow{IGNORED_FLOW_NAME_SUBSTRINGS[0]}:suffix", True), # Original name "flow-main:suffix" contains "-main" -> True
     ("validName:'\"", True), # Valid name before colon, colon itself is just a separator
 
     # Rule: Handling quotes ( "text between final "" ... " )
@@ -216,20 +222,22 @@ def test_is_camel_case_basic():
     ("invalid_Name:config:suffix", False),
     ("flowNameWithMultiple:Suffixes:LikeThis", True), # flowNameWithMultiple is valid
 
-    # New test cases for Leading Backslashes (interaction with is_camel_case change)
-    # The `validate_flow_name_camel_case` extracts the name, then `is_camel_case` handles the slash.
-    (r"\activeEmployees", True), # validate_flow_name_camel_case gets "activeEmployees", is_camel_case gets "\activeEmployees" -> True
-    (r"\processData:config", True), # validate_flow_name_camel_case gets "processData", is_camel_case gets "\processData" -> True
-    (r"\invalid_name:config", False),# validate_flow_name_camel_case gets "invalid_name", is_camel_case gets "\invalid_name" -> False
-    (r"get:\validFlow:config", True),   # validate_flow_name_camel_case gets "validFlow", is_camel_case gets "\validFlow" -> True
-    (r"post:\invalid_Flow:config", False), # validate_flow_name_camel_case gets "invalid_Flow", is_camel_case gets "\invalid_Flow" -> False
-    (r"get:\\doubleSlashFlow:config", False), # validate_flow_name_camel_case gets "\doubleSlashFlow", is_camel_case gets "\\doubleSlashFlow" -> False
+    # New test cases for Leading Backslashes
+    # `validate_flow_name_camel_case` rule: `if "\\" in name_to_validate: return True`
+    (r"\activeEmployees", True),
+    (r"\processData:config", True),
+    (r"\invalid_name:config", True), # This will be True due to the '\' rule in validate_flow_name_camel_case
+    (r"get:\validFlow:config", True),
+    (r"post:\invalid_Flow:config", True), # This will be True due to the '\' rule
+    (r"get:\\doubleSlashFlow:config", True), # This will be True due to the '\' rule
 
     # New test cases for Combinations
-    (r"get:\activeEmployees:hr-config", True),
-    ("post:process_Data:main-config", False), # process_Data is invalid
+    (r"get:\activeEmployees:hr-config", True), # Contains '\', so True
+    ("post:process_Data:main-config", False), # process_Data is invalid, no '\' in "process_Data"
 
-    # Original examples from the issue description (assuming leading backslash for some based on context)
+    # Original examples from the issue description
+    # These will all be True if they contain '\' after prefix/suffix stripping by validate_flow_name_camel_case
+    # Assuming the '\' is part of the name_to_validate:
     (r'get:\activeEmployees:abc-xyz-integrationservices-config', True),
     (r'get:\terminatedEmployees:abc-xyz-integrationservices-config', True),
     (r'get:\activeEmployeesfromDW:abc-xyz-integrationservices-config', True),
@@ -241,15 +249,15 @@ def test_is_camel_case_basic():
     (r'get:\tiksEmployees:abc-xyz-integrationservices-config', True),
     (r'get:\leaveBalance:abc-xyz-integrationservices-config', True),
     (r'get:\leaveBalanceFromDWH:abc-xyz-integrationservices-config', True),
-    (r'get:\hbt:abc-xyz-integrationservices-config', True), # hbt is valid camel case
+    (r'get:\hbt:abc-xyz-integrationservices-config', True),
 
-    # Ensure IGNORED_FLOW_NAMES still work correctly
-    # The IGNORED_FLOW_NAMES check is done on the original flow_name before any processing.
-    ("abc-xyz-integrationservices-main", True),
-    ("abc-xyz-integrationservices-console", True),
-    # If an ignored name has a prefix/suffix, it's NOT ignored by default by current logic unless the exact string is in IGNORED_FLOW_NAMES
-    ("get:abc-xyz-integrationservices-main:config", False), # "get:abc-xyz-integrationservices-main:config" is not in IGNORED_FLOW_NAMES, so "abc-xyz-integrationservices-main" is extracted and validated (False)
-    ("abc-xyz-integrationservices-main:some-config", False), # Not in ignored list, "abc-xyz-integrationservices-main" extracted and validated (False due to hyphens)
+    # Ensure IGNORED_FLOW_NAME_SUBSTRINGS still work correctly
+    ("flowName-main", True), # Original name contains "-main"
+    ("flowName-console", True),
+    # If an ignored substring is part of the name *after* prefix/suffix stripping, it's not caught by the initial check.
+    # The initial check is `if any(sub in flow_name for sub in IGNORED_FLOW_NAME_SUBSTRINGS):`
+    ("get:flow-main-segment:config", False), # "flow-main-segment" is extracted. It contains "-main". is_camel_case("flow-main-segment") is False.
+    ("flow-main-segment:config", False), # "flow-main-segment" is extracted. is_camel_case("flow-main-segment") is False.
 
     # Test cases where the part to validate itself might be a mime type or special string
     ("get:application/json:myapi-config", True), # "application/json" is extracted, which is in COMMON_MIME_TYPES

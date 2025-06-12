@@ -18,13 +18,15 @@ import yaml
 import re
 
 # Regex for detecting long, random-looking strings that might be unencrypted secrets.
-# This pattern looks for strings of 32+ characters containing alphanumeric chars and common Base64 chars.
+# This pattern looks for strings of 32+ characters containing alphanumeric characters
+# and common Base64 characters (+, /, =).
 GENERIC_SECRET_PATTERN = re.compile(r'[a-zA-Z0-9+/=]{32,}')
 
 # Keywords that often indicate a property key is for a sensitive value.
+# Used to flag plaintext values for keys containing these terms.
 SENSITIVE_KEYWORDS = ['password', 'secret', 'key', 'token', 'credentials', 'apikey']
 
-def validate_yaml_file(file_path):
+def validate_yaml_file(file_path: str) -> tuple[bool, str | None]:
     """
     Validates the basic YAML syntax of a single file.
 
@@ -32,13 +34,12 @@ def validate_yaml_file(file_path):
         file_path (str): The path to the YAML file.
 
     Returns:
-        tuple: A tuple `(is_valid, error_message)`.
-               - `is_valid` (bool): True if the YAML syntax is valid, False otherwise.
-               - `error_message` (str or None): A string containing the YAML parsing
-                 error message if invalid, or None if valid.
+        tuple[bool, str | None]: A tuple where the first element is True if
+        the YAML syntax is valid, False otherwise. The second element is a
+        string containing the YAML parsing error message if invalid, or None if valid.
     """
     try:
-        with open(file_path, 'r', encoding='utf-8') as file: # Added encoding
+        with open(file_path, 'r', encoding='utf-8') as file:
             yaml.safe_load(file)
         return True, None
     except yaml.YAMLError as exc:
@@ -54,16 +55,20 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
     - Detecting values that match a generic pattern for secrets.
     - Checking keys containing sensitive keywords for plaintext values.
 
-    The severity of reported issues (INFO vs. WARNING) can depend on whether
-    the project is configured to use Mule Secure Properties.
+    The severity of reported issues (e.g., INFO vs. WARNING) can depend on whether
+    the project is configured to use Mule Secure Properties. Values that appear to be
+    filenames or paths are handled specially to reduce false positives for generic
+    secret patterns or sensitive keywords.
 
     Args:
         file_path (str): The path to the YAML file to check.
         project_uses_secure_properties (bool): True if the MuleSoft project is
-                                               configured to use secure properties.
+            configured to use Mule Secure Properties. This influences the advice
+            given for plaintext sensitive values.
 
     Returns:
-        list: A list of issue description strings found in the YAML content.
+        list[str]: A list of issue description strings found in the YAML content.
+                   Each string describes a potential problem.
     """
     issues = []
     try:
@@ -182,12 +187,14 @@ def _get_common_keys_with_identical_values(data1, data2, prefix=""):
     Recursively finds common keys in two data structures (dicts) that have identical scalar values.
 
     Args:
-        data1 (dict): The first dictionary to compare.
-        data2 (dict): The second dictionary to compare.
-        prefix (str): The prefix for the key path (used for recursion).
+        data1 (dict): The first dictionary (parsed YAML data) to compare.
+        data2 (dict): The second dictionary (parsed YAML data) to compare.
+        prefix (str): The current key path prefix, used for building full
+                      dot-separated key paths during recursion.
 
     Returns:
-        list: A list of key paths (dot-separated) where both dictionaries have the same value.
+        list[str]: A list of dot-separated key paths that exist in both `data1`
+                   and `data2` and have identical scalar or list values.
     """
     identical_value_keys = []
     if not isinstance(data1, dict) or not isinstance(data2, dict):
@@ -217,17 +224,21 @@ def compare_environment_config_values(env_configs_data):
     to find keys that (a) have identical values and (b) are identified as
     potentially environment-specific based on TARGET_CONFIG_KEYWORDS or regex.
 
-    Only keys matching the regex or exactly matching a keyword are compared.
+    Only keys whose segments match one of the `TARGET_CONFIG_KEYWORDS` or the
+    `TARGET_CONFIG_REGEX` are considered for this comparison.
+
+    Currently, this function specifically compares "prod" and "nonprod" environments
+    if both are present in `env_configs_data`.
 
     Args:
-        env_configs_data (dict): A dictionary where keys are environment identifiers
-                                 (e.g., "prod", "nonprod") and values are their
-                                 parsed YAML data (dictionaries).
+        env_configs_data (dict[str, dict]): A dictionary where keys are environment
+            identifiers (e.g., "prod", "nonprod") and values are their
+            corresponding parsed YAML data (as dictionaries).
 
     Returns:
-        list: A list of issue strings. Each string describes a key found to have
-              an identical value across the compared environments, where the key
-              is also deemed environment-specific by matching TARGET_CONFIG_KEYWORDS or regex.
+        list[str]: A list of issue description strings. Each string details a key
+            that is (a) deemed environment-specific and (b) has an identical
+            value in the compared environments (e.g., "prod" and "nonprod").
     """
     issues = []
 
@@ -284,12 +295,14 @@ def validate_files(package_folder_path, project_uses_secure_properties):
                                                is configured to use Mule Secure Properties.
                                                This affects how content rules are applied.
     Returns:
-        list: A list of validation results. Each result is a list of three elements:
-              `[file_name, status, message]`.
-              - `file_name` (str): The name of the YAML file.
-              - `status` (str): Describes the validation status (e.g., 'Missing',
-                'Invalid Syntax', 'Valid Syntax', 'Content Issue').
-              - `message` (str): Detailed message about the issue or an empty string.
+        list[list[str]]: A list of validation result entries. Each entry is a list of three strings:
+            - `element_name` (str): The name of the file being validated or a description
+              of the check (e.g., "Environment Comparison", "Prod vs NonProd Comparison").
+            - `status` (str): A short description of the validation status or outcome
+              (e.g., 'Missing', 'Invalid Syntax', 'Valid Syntax', 'Content Issue',
+              'Environment Config Value Issue').
+            - `message` (str): A detailed message describing the specific validation
+              finding or issue. For 'Valid Syntax' or successful checks, this may be an empty string.
     """
     # Define standard YAML configuration files in MuleSoft projects.
     mandatory_files = ['config-prod.yaml', 'config-nonprod.yaml']

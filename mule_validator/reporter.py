@@ -1,9 +1,35 @@
 import logging
 from tabulate import tabulate
+from typing import Dict, Any, Optional, List
+
+"""
+Generates a human-readable, text-based validation report to the console.
+
+This module takes the aggregated results from all validation checks and formats
+them into a structured console output. It uses the `tabulate` library to display
+list-based data in tables and provides specific formatting for different types
+of validation results, including security warnings.
+"""
 
 logger = logging.getLogger(__name__)
 
-def _print_security_warning(warning_type, file_path, location, issue, value_excerpt=None):
+def _print_security_warning(
+    warning_type: str,
+    file_path: str,
+    location: Optional[str],
+    issue: str,
+    value_excerpt: Optional[str] = None
+) -> None:
+    """
+    Prints a standardized security warning message to the console.
+
+    Args:
+        warning_type (str): The type of security warning (e.g., "YAML Secret", "POM Secret").
+        file_path (str): The path to the file where the warning was found.
+        location (Optional[str]): Specific location within the file (e.g., XML path, key path).
+        issue (str): Description of the security issue.
+        value_excerpt (Optional[str], optional): An excerpt of the problematic value. Defaults to None.
+    """
     print(f"\n  [SECURITY WARNING] ({warning_type})")
     print(f"    File: {file_path}")
     if location:
@@ -12,7 +38,33 @@ def _print_security_warning(warning_type, file_path, location, issue, value_exce
     if value_excerpt:
         print(f"    Value Excerpt: \"{value_excerpt}\"")
 
-def generate_console_report(all_results):
+def generate_console_report(all_results: Dict[str, Any]) -> None:
+    """
+    Generates and prints a comprehensive validation report to the console.
+
+    The function iterates through the `all_results` dictionary, which should
+    contain results from various validation modules keyed by a `validation_type` string
+    (e.g., 'yaml_validation', 'dependency_validation', 'code_reviewer').
+
+    For each validation type, it applies specific formatting logic:
+    - **yaml_validation**: Displays mandatory and optional file checks in tables,
+      and lists security warnings using `_print_security_warning`.
+    - **dependency_validation**: Shows build size, lists unused dependencies,
+      POM parsing errors, and POM security warnings.
+    - **flow_validation**: Tabulates flow, sub-flow, and component counts against limits.
+    - **api_validation**: Reports on the presence of API specifications and definition flows.
+    - **code_reviewer**: Lists file processing errors, standard code review issues,
+      and XML security warnings.
+    - Other types are handled with a generic fallback.
+
+    The report includes a summary of total security warnings found across all sections.
+
+    Args:
+        all_results (Dict[str, Any]): A dictionary where keys are strings
+            representing the validation type (e.g., 'yaml_validation') and
+            values are the corresponding results from the validator modules.
+            The structure of the values varies depending on the validation type.
+    """
     logger.info("Generating console report...")
     print("\n" + "="*80)
     print("VALIDATION REPORT")

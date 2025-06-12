@@ -1,8 +1,29 @@
+"""
+Generates an HTML report from MuleSoft project validation results.
+
+This module takes a dictionary containing various validation results (from code review,
+YAML checks, dependency analysis, etc.) and an HTML template string. It populates
+the placeholders in the template with formatted data from the results to produce
+a single HTML output string.
+
+The module uses the `tabulate` library to format list-based data into HTML tables.
+It also includes functionality to fetch the current Git branch name.
+"""
 import subprocess
 from tabulate import tabulate
+from typing import Any, Union, List, Dict
 
-def get_current_git_branch():
-    """Tries to get the current Git branch name."""
+def get_current_git_branch() -> str:
+    """
+    Tries to get the current Git branch name using the `git` command.
+
+    Executes `git rev-parse --abbrev-ref HEAD` with a timeout of 5 seconds.
+    If the command fails (e.g., not a git repository, git not installed, timeout),
+    it returns "Unknown".
+
+    Returns:
+        str: The current Git branch name or "Unknown" if it cannot be determined.
+    """
     try:
         process_result = subprocess.run(
             ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
@@ -14,35 +35,90 @@ def get_current_git_branch():
 
 def _format_data_to_html(data, headers="firstrow"):
     """
-    Helper function to format various data structures to HTML.
+    Helper function to format various Python data structures into simple HTML.
+
+    - If `data` is a list of lists, it's formatted as an HTML table using `tabulate`.
+    - If `data` is a list of strings or other items, it's formatted as an HTML unordered list.
+    - If `data` is a dictionary, it's formatted as a simple two-column HTML table (Key, Value).
+    - If `data` is a string, it's wrapped in a `<p>` tag.
+    - Other data types are converted to string and wrapped in a `<p>` tag.
+    - If `data` is empty (None, empty list, empty dict), it returns "<p>No data available.</p>".
+
+    Args:
+        data (Any): The data to format. Can be a list, dict, string, etc.
+        headers (Union[str, List[str]], optional): For list-of-lists data,
+            specifies table headers. Defaults to "firstrow".
+            Passed directly to `tabulate`.
+
+    Returns:
+        str: An HTML string representation of the input data.
     """
     if not data:
         return "<p>No data available.</p>"
 
     if isinstance(data, list):
-        if not data:
+        if not data: # Empty list
             return "<p>No data available.</p>"
-        if all(isinstance(item, list) for item in data):
+        if all(isinstance(item, list) for item in data): # List of lists
             return tabulate(data, headers=headers, tablefmt='html')
-        elif all(isinstance(item, str) for item in data):
+        elif all(isinstance(item, str) for item in data): # List of strings
             items_html = "".join(f"<li>{item}</li>" for item in data)
             return f"<ul>{items_html}</ul>"
-        else:
+        else: # List of other items
             items_html = "".join(f"<li>{str(item)}</li>" for item in data)
             return f"<ul>{items_html}</ul>"
     elif isinstance(data, dict):
-        if not data:
+        if not data: # Empty dict
             return "<p>No data available.</p>"
-        table_rows = "".join(f"<tr><td>{key}</td><td>{value}</td></tr>" for key, value in data.items())
+        # Simple key-value table for dicts
+        table_rows = "".join(f"<tr><td>{key}</td><td>{str(value)}</td></tr>" for key, value in data.items())
         return f"<table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>{table_rows}</tbody></table>"
     elif isinstance(data, str):
-        return f"<p>{data}</p>"
-    else:
+        return f"<p>{data}</p>" # Wrap plain strings in a paragraph
+    else: # For other data types (int, bool, etc.)
         return f"<p>{str(data)}</p>"
 
-def generate_html_report(all_results, template_string):
+def generate_html_report(all_results: Dict[str, Any], template_string: str) -> str:
     """
-    Generates an HTML report by populating a template string with validation results.
+    Generates an HTML report by populating placeholders in a template string
+    with validation results.
+
+    The `all_results` dictionary is expected to contain keys corresponding to
+    different validation categories (e.g., 'code_reviewer_issues', 'yaml_validation').
+    The data under these keys is formatted into HTML (often tables or lists)
+    and substituted into the `template_string` where corresponding placeholders
+    (e.g., `{{code_review_issues_table}}`) are found.
+
+    Expected keys in `all_results` and their typical data structures:
+    - 'code_reviewer_issues' (list[list[str]]): Issues from code review.
+    - 'yaml_validation' (list[list[str]]): Results from YAML file validation.
+    - 'dependency_validation' (dict): Results from POM dependency validation.
+        - Keys are POM file paths, values are dicts with "missing_jars",
+          "unresolved_dependencies", "duplicate_dependencies".
+    - 'flow_validation' (dict | list): Results from flow validation.
+        - If dict, contains counts and status flags.
+        - If list (older format), directly formatted.
+    - 'api_validation' (dict | list): Results from API validation.
+        - If dict, contains API spec and APIkit router status.
+        - If list (older format), directly formatted.
+    - 'project_uses_secure_properties' (bool | None): Status of Mule Secure Properties usage.
+    - 'logging_validation' (dict): Results from logging configuration validation.
+        - Contains "logger_issues" and "log4j_warnings".
+    - 'git_branch_name' (str): Name of the current Git branch.
+    - 'report_start_time' (str): Timestamp when the report generation started.
+    - 'report_end_time' (str): Timestamp when the report generation ended.
+    - 'report_duration' (str): Duration of the report generation.
+
+    Placeholders in `template_string` (e.g., `{{placeholder_name}}`) are replaced.
+    If data for a placeholder is missing or empty, a default message like
+    "<p>No data available.</p>" or "<p>No issues found.</p>" is used.
+
+    Args:
+        all_results (Dict[str, Any]): A dictionary containing all validation results.
+        template_string (str): The HTML template string with placeholders.
+
+    Returns:
+        str: The populated HTML report content.
     """
     html_content = template_string
 

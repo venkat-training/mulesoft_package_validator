@@ -10,39 +10,53 @@ from mule_validator.flow_validator import validate_flow_name_camel_case
 # tabulate is not used in this module directly anymore, but was part of the original file.
 # If other parts of the project rely on it being imported here, it could be kept,
 # otherwise, it's a candidate for removal from this specific file's imports.
-# For now, it's commented out as it's not used by functions in this module.
-# from tabulate import tabulate 
+# from tabulate import tabulate
 
-def is_camel_case(name):
+def is_camel_case(name: str) -> bool:
     """
     Checks if a given name is in camel case format.
 
-    :param name: The name string to check.
-    :return: True if the name is in camel case format, otherwise False.
+    A name is considered camel case if it starts with a lowercase letter,
+    followed by any sequence of alphanumeric characters.
+
+    Args:
+        name (str): The name string to check.
+
+    Returns:
+        bool: True if the name is in camel case format, otherwise False.
     """
     return re.match(r'^[a-z][a-zA-Z0-9]*$', name) is not None
 
 # Helper function to check for secure properties configuration
-def _contains_secure_properties_config(root, namespaces):
+def _contains_secure_properties_config(root: etree._Element, namespaces: dict) -> bool:
     """
     Checks if the XML configuration contains a Mule Secure Properties <secure-properties:config> element.
+
     This indicates that the project is set up to use Mule's property encryption features.
 
-    :param root: The root element of the parsed XML (lxml.etree._Element).
-    :param namespaces: A dictionary of XML namespaces mapping prefixes to URIs.
-    :return: True if a <secure-properties:config> element is found, otherwise False.
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces mapping prefixes to URIs.
+
+    Returns:
+        bool: True if a <secure-properties:config> element is found, otherwise False.
     """
-    # XPath search for the secure-properties:config element.
     return root.find(".//secure-properties:config", namespaces=namespaces) is not None
 
 def check_flow_names(root, namespaces):
     """
     Checks for issues with flow names in the XML configuration.
-    - Flow names should comply with camel case format and contain only alphanumeric characters.
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to flow names.
+    Flow names are validated for camel case format. The validation logic specifically
+    targets the core part of the flow name, attempting to exclude potential APIkit
+    router or other namespace prefixes/suffixes before applying camel case rules.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces used in the MuleSoft configuration.
+
+    Returns:
+        list[str]: A list of issue description strings found related to flow names.
     """
     issues = []
     for flow in root.findall(".//mule:flow", namespaces=namespaces):
@@ -67,21 +81,22 @@ def check_flow_names(root, namespaces):
             # Add a check to ensure name_to_check is not empty before validation
             if not name_to_check:
                 issues.append(f"Flow name '{name}' results in an empty part for validation after APIkit prefix/suffix removal.")
-            #elif not is_camel_case(name_to_check):
             elif not validate_flow_name_camel_case(name_to_check):
                 issues.append(f"Flow name part '{name_to_check}' (from original: '{name}') does not comply with camel case format.")
-            #elif not re.match(r'^[a-zA-Z0-9]+$', name_to_check):
-                #issues.append(f"Flow name part '{name_to_check}' (from original: '{name}') contains invalid characters. It should be alphanumeric.")
     return issues
 
-def check_http_listener(root, namespaces):
+def check_http_listener(root: etree._Element, namespaces: dict) -> list[str]:
     """
     Checks for issues with HTTP Listener configurations.
-    - HTTP Listeners should have a defined path attribute.
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to HTTP Listeners.
+    - HTTP Listeners should have a defined `path` attribute.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for listener in root.findall(".//http:listener", namespaces=namespaces):
@@ -93,11 +108,15 @@ def check_http_listener(root, namespaces):
 def check_logger(root, namespaces):
     """
     Checks for issues with Logger configurations.
-    - Loggers should have a defined message attribute.
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to Loggers.
+    - Loggers should have a defined `message` attribute.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for logger in root.findall(".//mule:logger", namespaces=namespaces):
@@ -109,11 +128,15 @@ def check_logger(root, namespaces):
 def check_dataweave(root, namespaces):
     """
     Checks for issues with DataWeave transformations.
-    - DataWeave transformations should include a set-payload element.
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to DataWeave transformations.
+    - DataWeave transformations (`dw:transform-message`) should include a `dw:set-payload` child element.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for transform in root.findall(".//dw:transform-message", namespaces=namespaces):
@@ -124,12 +147,16 @@ def check_dataweave(root, namespaces):
 
 def check_http_response(root, namespaces):
     """
-    Checks for issues with HTTP Response Builders.
-    - HTTP Response Builders should have a defined status-code element.
+    Checks for issues with HTTP Response Builders (`http:response-builder`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to HTTP Response Builders.
+    - HTTP Response Builders should have a defined `http:status-code` child element.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for response in root.findall(".//http:response-builder", namespaces=namespaces):
@@ -140,12 +167,16 @@ def check_http_response(root, namespaces):
 
 def check_scheduler(root, namespaces):
     """
-    Checks for issues with Scheduler configurations.
-    - Schedulers should have a defined frequency attribute.
+    Checks for issues with Scheduler configurations (`scheduler:inbound-endpoint`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to Schedulers.
+    - Schedulers should have a defined `frequency` attribute.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for scheduler in root.findall(".//scheduler:inbound-endpoint", namespaces=namespaces):
@@ -156,12 +187,16 @@ def check_scheduler(root, namespaces):
 
 def check_concur(root, namespaces):
     """
-    Checks for issues with Concur connector configurations.
-    - Concur connectors should have a defined config-ref attribute.
+    Checks for issues with Concur connector configurations (`concur:connector`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to Concur connectors.
+    - Concur connectors should have a defined `config-ref` attribute.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for concur in root.findall(".//concur:connector", namespaces=namespaces):
@@ -172,12 +207,16 @@ def check_concur(root, namespaces):
 
 def check_http_requester(root, namespaces):
     """
-    Checks for issues with HTTP Requester configurations.
-    - HTTP Requesters should have a defined URL attribute.
+    Checks for issues with HTTP Requester configurations (`http:requester`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to HTTP Requesters.
+    - HTTP Requesters should have a defined `url` attribute.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for requester in root.findall(".//http:requester", namespaces=namespaces):
@@ -188,12 +227,16 @@ def check_http_requester(root, namespaces):
 
 def check_ftp(root, namespaces):
     """
-    Checks for issues with FTP Inbound Endpoint configurations.
-    - FTP Inbound Endpoints should have defined host and port attributes.
+    Checks for issues with FTP Inbound Endpoint configurations (`ftp:inbound-endpoint`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to FTP Inbound Endpoints.
+    - FTP Inbound Endpoints should have defined `host` and `port` attributes.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for ftp in root.findall(".//ftp:inbound-endpoint", namespaces=namespaces):
@@ -207,12 +250,16 @@ def check_ftp(root, namespaces):
 
 def check_sftp(root, namespaces):
     """
-    Checks for issues with SFTP Inbound Endpoint configurations.
-    - SFTP Inbound Endpoints should have defined host and port attributes.
+    Checks for issues with SFTP Inbound Endpoint configurations (`sftp:inbound-endpoint`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to SFTP Inbound Endpoints.
+    - SFTP Inbound Endpoints should have defined `host` and `port` attributes.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for sftp in root.findall(".//sftp:inbound-endpoint", namespaces=namespaces):
@@ -226,12 +273,16 @@ def check_sftp(root, namespaces):
 
 def check_smb(root, namespaces):
     """
-    Checks for issues with SMB configurations.
-    - SMB components should have defined host, port, and username attributes.
+    Checks for issues with SMB configurations (`smb:inbound-endpoint`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to SMB configurations.
+    - SMB components should have defined `host`, `port`, and `username` attributes.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for smb in root.findall(".//smb:inbound-endpoint", namespaces=namespaces):
@@ -248,12 +299,16 @@ def check_smb(root, namespaces):
 
 def check_vm(root, namespaces):
     """
-    Checks for issues with VM configurations.
-    - VM components should have defined queue-name and max-retries attributes.
+    Checks for issues with VM configurations (`vm:inbound-endpoint`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to VM configurations.
+    - VM components should have defined `queue-name` and `max-retries` attributes.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for vm in root.findall(".//vm:inbound-endpoint", namespaces=namespaces):
@@ -267,12 +322,16 @@ def check_vm(root, namespaces):
 
 def check_s3(root, namespaces):
     """
-    Checks for issues with S3 Bucket configurations.
-    - S3 Buckets should have defined bucket-name and access-key attributes.
+    Checks for issues with S3 Bucket configurations (`s3:inbound-endpoint`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to S3 Bucket configurations.
+    - S3 Buckets should have defined `bucket-name` and `access-key` attributes.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for s3 in root.findall(".//s3:inbound-endpoint", namespaces=namespaces):
@@ -286,12 +345,16 @@ def check_s3(root, namespaces):
 
 def check_smtp(root, namespaces):
     """
-    Checks for issues with SMTP configurations.
-    - SMTP components should have defined host, port, and username attributes.
+    Checks for issues with SMTP configurations (`smtp:outbound-endpoint`).
 
-    :param root: The root element of the parsed XML.
-    :param namespaces: A dictionary of XML namespaces used in the MuleSoft configuration.
-    :return: A list of issues found related to SMTP configurations.
+    - SMTP components should have defined `host`, `port`, and `username` attributes.
+
+    Args:
+        root (lxml.etree._Element): The root element of the parsed XML.
+        namespaces (dict): A dictionary of XML namespaces.
+
+    Returns:
+        list[str]: A list of issue description strings.
     """
     issues = []
     for smtp in root.findall(".//smtp:outbound-endpoint", namespaces=namespaces):
@@ -313,13 +376,16 @@ def review_mulesoft_code(file_path):
 
     Reads the XML file, parses it, and performs various checks (e.g., flow names,
     component configurations). Also detects the presence of a
-    <secure-properties:config> element.
+    `<secure-properties:config>` element.
 
-    :param file_path: The path to the XML file to review.
-    :return: A tuple:
-             - issues (list): A list of issue description strings found in the XML file.
-             - uses_secure_config_in_file (bool): True if a <secure-properties:config>
-               element is found in this file, otherwise False.
+    Args:
+        file_path (str): The path to the XML file to review.
+
+    Returns:
+        tuple[list[str], bool]: A tuple containing:
+            - A list of issue description strings found in the XML file.
+            - A boolean indicating True if a `<secure-properties:config>`
+              element is found in this file, otherwise False.
     """
     try:
         # Read XML content from the file
@@ -363,7 +429,7 @@ def review_mulesoft_code(file_path):
         issues.extend(check_smb(root, namespaces))
         issues.extend(check_vm(root, namespaces))
         issues.extend(check_s3(root, namespaces))
-        issues.extend(check_s3(root, namespaces))
+        # Removed duplicate check_s3 call
         issues.extend(check_smtp(root, namespaces))
 
         # Check for Mule Secure Properties configuration in this specific file
@@ -389,13 +455,15 @@ def review_all_files(directory):
     The function aggregates all issues found across the files and determines if
     Mule Secure Properties configuration is used in at least one file within the project.
 
-    :param directory: The root directory to start searching for XML files.
-    :return: A tuple:
-             - all_issues_data (list): A list of lists, where each inner list contains
-               [file_name, status_message, issue_description]. This format is
-               suitable for tabular display.
-             - project_uses_secure_properties (bool): True if any file in the project
-               contains Mule Secure Properties configuration, otherwise False.
+    Args:
+        directory (str): The root directory to start searching for XML files.
+
+    Returns:
+        tuple[list[list[str]], bool]: A tuple containing:
+            - A list of lists, where each inner list contains `[file_name, status_message, issue_description]`.
+              This format is suitable for tabular display.
+            - A boolean that is True if any file in the project contains Mule Secure
+              Properties configuration (`<secure-properties:config>`), otherwise False.
     """
     all_issues_data = []  # Stores [file_name, status, issue_description] for all files
     project_uses_secure_properties = False  # Flag for overall project secure properties usage
