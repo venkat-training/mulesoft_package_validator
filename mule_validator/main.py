@@ -23,6 +23,8 @@ from .configfile_validator import validate_files
 from .logs_reviewer import validate_logging
 from .html_reporter import generate_html_report
 
+logger = logging.getLogger(__name__)
+
 def get_current_git_branch(repo_path):
     """
     Returns the current git branch name for the Git repository at the given path.
