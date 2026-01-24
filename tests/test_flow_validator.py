@@ -61,7 +61,7 @@ def test_count_flows_and_components_valid_xml_variants(mock_et_parse):
         mock_tree.getroot.return_value = mock_root
         mock_et_parse.return_value = mock_tree
         
-        counts = count_flows_and_components("dummy.xml")
+        counts, _ = count_flows_and_components("dummy.xml")
         
         assert counts['flows'] == exp_f, f"Test '{name}' failed for flows"
         assert counts['sub_flows'] == exp_sf, f"Test '{name}' failed for sub-flows"
@@ -73,7 +73,7 @@ def test_count_flows_and_components_parse_error(mock_et_parse, caplog):
     """Test count_flows_and_components with an ET.ParseError."""
     mock_et_parse.side_effect = ET.ParseError("mocked xml parse error")
     
-    counts = count_flows_and_components("dummy.xml")
+    counts, _ = count_flows_and_components("dummy.xml")
     
     assert counts == {'flows': 0, 'sub_flows': 0, 'components': 0}
     assert any(
@@ -86,7 +86,7 @@ def test_count_flows_and_components_file_not_found(mock_et_parse, caplog):
     """Test count_flows_and_components with FileNotFoundError."""
     mock_et_parse.side_effect = FileNotFoundError("mocked file not found")
     
-    counts = count_flows_and_components("dummy.xml")
+    counts, _ = count_flows_and_components("dummy.xml")
     
     assert counts == {'flows': 0, 'sub_flows': 0, 'components': 0}
     # Test that the second part of the tuple (invalid_flow_names) is empty
@@ -185,7 +185,7 @@ def test_is_camel_case_basic():
     # Combinations
     ('"validFlowNameBeforeColon":suffix', True),
     ("'invalid_name_also_quoted:suffix'", False),
-    (f'"{IGNORED_FLOW_NAMES[0]}":suffix', True),
+    (f'"{IGNORED_FLOW_NAME_SUBSTRINGS[0]}":suffix', True),
     ("get:/customer", True), # "get" is valid by is_camel_case
     ("post:/order:createOrder", True), # "post" is valid
     ("put:/product/productId", True), # "put" is valid
@@ -235,21 +235,21 @@ def test_is_camel_case_basic():
     (r"get:\activeEmployees:hr-config", True), # Contains '\', so True
     ("post:process_Data:main-config", False), # process_Data is invalid, no '\' in "process_Data"
 
-    # Original examples from the issue description
+    # Original examples from the issue description - now anonymized
     # These will all be True if they contain '\' after prefix/suffix stripping by validate_flow_name_camel_case
     # Assuming the '\' is part of the name_to_validate:
-    (r'get:\activeEmployees:abc-xyz-integrationservices-config', True),
-    (r'get:\terminatedEmployees:abc-xyz-integrationservices-config', True),
-    (r'get:\activeEmployeesfromDW:abc-xyz-integrationservices-config', True),
-    (r'get:\activeEmployeesfromLdap:abc-xyz-integrationservices-config', True),
-    (r'get:\sbsuEmployees:abc-xyz-integrationservices-config', True),
-    (r'get:\tandaEmployees:abc-xyz-integrationservices-config', True),
-    (r'get:\terminatedEmployeesfromDW:abc-xyz-integrationservices-config', True),
-    (r'get:\terminatedEmployeesfromLdap:abc-xyz-integrationservices-config', True),
-    (r'get:\tiksEmployees:abc-xyz-integrationservices-config', True),
-    (r'get:\leaveBalance:abc-xyz-integrationservices-config', True),
-    (r'get:\leaveBalanceFromDWH:abc-xyz-integrationservices-config', True),
-    (r'get:\hbt:abc-xyz-integrationservices-config', True),
+    (r'get:\activeEmployees:sample-integrationservices-config', True),
+    (r'get:\terminatedEmployees:sample-integrationservices-config', True),
+    (r'get:\activeEmployeesfromDW:sample-integrationservices-config', True),
+    (r'get:\activeEmployeesfromLdap:sample-integrationservices-config', True),
+    (r'get:\sampleEmployees:sample-integrationservices-config', True),
+    (r'get:\testEmployees:sample-integrationservices-config', True),
+    (r'get:\terminatedEmployeesfromDW:sample-integrationservices-config', True),
+    (r'get:\terminatedEmployeesfromLdap:sample-integrationservices-config', True),
+    (r'get:\mockEmployees:sample-integrationservices-config', True),
+    (r'get:\leaveBalance:sample-integrationservices-config', True),
+    (r'get:\leaveBalanceFromDWH:sample-integrationservices-config', True),
+    (r'get:\sampleData:sample-integrationservices-config', True),
 
     # Ensure IGNORED_FLOW_NAME_SUBSTRINGS still work correctly
     ("flowName-main", True), # Original name contains "-main"

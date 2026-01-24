@@ -22,6 +22,7 @@ from .api_validator import validate_api_spec_and_flows
 from .configfile_validator import validate_files
 from .logs_reviewer import validate_logging
 from .html_reporter import generate_html_report
+from .mule_orphan_checker import MuleComprehensiveOrphanChecker
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +247,11 @@ def main() -> None:
     logger.info("Retrieving current git branch name...")
     git_branch_name = get_current_git_branch(package_folder_path)
 
+    # Step 8: Run Mule Orphan Checker
+    logger.info("Running Mule Orphan Checker...")
+    orphan_checker = MuleComprehensiveOrphanChecker(package_folder_path)
+    orphan_report = orphan_checker.run()
+
     end_time = datetime.datetime.now()
     duration = end_time - start_time
 
@@ -260,6 +266,7 @@ def main() -> None:
         'project_uses_secure_properties': project_uses_secure_properties,
         'logging_validation': logging_validation_results,
         'git_branch_name': git_branch_name,
+        'orphan_checker': orphan_report,
         'report_start_time': start_time.strftime('%Y-%m-%d %H:%M:%S'),
         'report_end_time': end_time.strftime('%Y-%m-%d %H:%M:%S'),
         'report_duration': str(duration)
@@ -267,6 +274,10 @@ def main() -> None:
 
     # Print summary to console (optional)
     print("\nSummary of all validation results:", all_results)
+    if 'orphan_checker' in all_results and 'summary' in all_results['orphan_checker']:
+        print("\nOrphan Checker Summary:")
+        for k, v in all_results['orphan_checker']['summary'].items():
+            print(f"  {k}: {v}")
 
     # Generate HTML report if the --report-file argument is provided
     if args.report_file:
@@ -277,6 +288,10 @@ def main() -> None:
             with open(args.report_file, 'w') as f_report:
                 f_report.write(report_content)
             print(f"\nHTML report generated successfully at: {args.report_file}")
+            # Optionally, generate a separate orphan HTML report as well
+            orphan_html_path = args.report_file.replace('.html', '_orphan.html')
+            orphan_checker._generate_html_report(orphan_report, orphan_html_path)
+            print(f"Orphan HTML report generated at: {orphan_html_path}")
         except FileNotFoundError:
             print(f"\nError: HTML template file not found at mule_validator/report_template.html. Report not generated.")
         except Exception as e:

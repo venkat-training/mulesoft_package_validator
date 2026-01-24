@@ -1,0 +1,466 @@
+<html><head><meta charset="UTF-8"><title>MuleSoft Orphan Report</title>
+
+        <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2 { color: #333; }
+        summary { font-weight: bold; cursor: pointer; }
+        details { margin-bottom: 1em; }
+        code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+        .orphan { color: red; }
+        .used { color: green; }
+        .declared { color: #555; }
+        </style>
+        </head><body>
+        
+<h1>MuleSoft Orphan Report</h1>
+<h2>Summary</h2><ul>
+<li><b>total_orphaned_items:</b> 18</li>
+<li><b>orphan_flows_count:</b> 3</li>
+<li><b>orphan_subflows_count:</b> 0</li>
+<li><b>orphan_configs_count:</b> 1</li>
+<li><b>orphan_variables_count:</b> 0</li>
+<li><b>orphan_env_vars_count:</b> 0</li>
+<li><b>orphan_property_keys_count:</b> 12</li>
+<li><b>orphan_error_handlers_count:</b> 0</li>
+<li><b>orphan_exception_strategies_count:</b> 0</li>
+<li><b>orphan_endpoints_count:</b> 0</li>
+<li><b>orphan_dw_scripts_count:</b> 2</li>
+</ul>
+<h2>🛑 Orphan Items</h2>
+<details><summary>flows (3)</summary><ul>
+<li><code class='orphan'>SampleOrphanFlow1</code> — <small>src/main/mule/sampleModule/schedulers.xml</small></li>
+<li><code class='orphan'>SampleOrphanFlow2</code> — <small>src/main/mule/sampleModule/receiveDetails.xml</small></li>
+<li><code class='orphan'>SampleOrphanFlow3</code> — <small>src/main/mule/common/sendEmail.xml</small></li>
+</ul></details>
+<details><summary>subflows (0)</summary><ul>
+</ul></details>
+<details><summary>configs (1)</summary><ul>
+<li><code class='orphan'>SampleOrphanConfig1</code></li>
+</ul></details>
+<details><summary>variables (0)</summary><ul>
+</ul></details>
+<details><summary>env_vars (0)</summary><ul>
+</ul></details>
+<details><summary>property_keys (12)</summary><ul>
+<li><code class='orphan'>http.localhost</code></li>
+<li><code class='orphan'>http.private.port</code></li>
+<li><code class='orphan'>https.localhost</code></li>
+<li><code class='orphan'>https.port</code></li>
+<li><code class='orphan'>cache.maxentries</code></li>
+<li><code class='orphan'>mediamanagement.basepath</code></li>
+<li><code class='orphan'>event.lookuptime1</code></li>
+<li><code class='orphan'>event.lookuptime2</code></li>
+<li><code class='orphan'>event.lookuptime3</code></li>
+<li><code class='orphan'>event.lookuptime4</code></li>
+<li><code class='orphan'>event.lookuptime5</code></li>
+<li><code class='orphan'>event.lookuptime6</code></li>
+</ul></details>
+<details><summary>error_handlers (0)</summary><ul>
+</ul></details>
+<details><summary>exception_strategies (0)</summary><ul>
+</ul></details>
+<details><summary>endpoints (0)</summary><ul>
+</ul></details>
+<details><summary>dw_scripts (2)</summary><ul>
+<li><code class='orphan'>src/main/resources/modules/samplemodule1.dwl</code></li>
+<li><code class='orphan'>src/main/resources/modules/samplemodule2.dwl</code></li>
+</ul></details>
+<h2>✅ Used Items</h2>
+<details><summary>flows (36)</summary><ul>
+<li><code class='used'>SampleUsedFlow1</code> — <small>src/main/mule/sampleModule/sample1.xml</small></li>
+<li><code class='used'>SampleUsedFlow2</code> — <small>src/main/mule/sampleModule/sample2.xml</small></li>
+<li><code class='used'>SampleUsedFlow3</code> — <small>src/main/mule/common/sample3.xml</small></li>
+<li><code class='used'>SampleUsedFlow4</code> — <small>src/main/mule/sampleModule/sample4.xml</small></li>
+<li><code class='used'>SampleUsedFlow5</code> — <small>src/main/mule/sampleModule/sample5.xml</small></li>
+<li><code class='used'>SampleUsedFlow6</code> — <small>src/main/mule/sampleModule/sample6.xml</small></li>
+<li><code class='used'>SampleUsedFlow7</code> — <small>src/main/mule/sampleModule/sample7.xml</small></li>
+<li><code class='used'>SampleUsedFlow8</code> — <small>src/main/mule/sampleModule/sample8.xml</small></li>
+<li><code class='used'>SampleUsedFlow9</code> — <small>src/main/mule/common/sample9.xml</small></li>
+<li><code class='used'>SampleUsedFlow10</code> — <small>src/main/mule/sampleModule/sample10.xml</small></li>
+<li><code class='used'>SampleUsedFlow11</code> — <small>src/main/mule/sampleModule/sample11.xml</small></li>
+<li><code class='used'>SampleUsedFlow12</code> — <small>src/main/mule/sampleModule/sample12.xml</small></li>
+<li><code class='used'>SampleUsedFlow13</code> — <small>src/main/mule/sampleModule/sample13.xml</small></li>
+<li><code class='used'>SampleUsedFlow14</code> — <small>src/main/mule/sampleModule/sample14.xml</small></li>
+<li><code class='used'>SampleUsedFlow15</code> — <small>src/main/mule/sampleModule/sample15.xml</small></li>
+<li><code class='used'>SampleUsedFlow16</code> — <small>src/main/mule/sampleModule/sample16.xml</small></li>
+<li><code class='used'>SampleUsedFlow17</code> — <small>src/main/mule/sampleModule/sample17.xml</small></li>
+<li><code class='used'>SampleUsedFlow18</code> — <small>src/main/mule/sampleModule/sample18.xml</small></li>
+<li><code class='used'>SampleUsedFlow19</code> — <small>src/main/mule/sampleModule/sample19.xml</small></li>
+<li><code class='used'>SampleUsedFlow20</code> — <small>src/main/mule/sampleModule/sample20.xml</small></li>
+<li><code class='used'>SampleUsedFlow21</code> — <small>src/main/mule/sampleModule/sample21.xml</small></li>
+<li><code class='used'>SampleUsedFlow22</code> — <small>src/main/mule/sampleModule/sample22.xml</small></li>
+<li><code class='used'>SampleUsedFlow23</code> — <small>src/main/mule/sampleModule/sample23.xml</small></li>
+<li><code class='used'>SampleUsedFlow24</code> — <small>src/main/mule/sampleModule/sample24.xml</small></li>
+<li><code class='used'>SampleUsedFlow25</code> — <small>src/main/mule/sampleModule/sample25.xml</small></li>
+<li><code class='used'>SampleUsedFlow26</code> — <small>src/main/mule/sampleModule/sample26.xml</small></li>
+<li><code class='used'>SampleUsedFlow27</code> — <small>src/main/mule/sampleModule/sample27.xml</small></li>
+<li><code class='used'>SampleUsedFlow28</code> — <small>src/main/mule/sampleModule/sample28.xml</small></li>
+<li><code class='used'>SampleUsedFlow29</code> — <small>src/main/mule/sampleModule/sample29.xml</small></li>
+<li><code class='used'>SampleUsedFlow30</code> — <small>src/main/mule/sampleModule/sample30.xml</small></li>
+<li><code class='used'>SampleUsedFlow31</code> — <small>src/main/mule/sampleModule/sample31.xml</small></li>
+<li><code class='used'>SampleUsedFlow32</code> — <small>src/main/mule/sampleModule/sample32.xml</small></li>
+<li><code class='used'>SampleUsedFlow33</code> — <small>src/main/mule/sampleModule/sample33.xml</small></li>
+<li><code class='used'>SampleUsedFlow34</code> — <small>src/main/mule/sampleModule/sample34.xml</small></li>
+<li><code class='used'>SampleUsedFlow35</code> — <small>src/main/mule/sampleModule/sample35.xml</small></li>
+<li><code class='used'>SampleUsedFlow36</code> — <small>src/main/mule/sampleModule/sample36.xml</small></li>
+</ul></details>
+<details><summary>subflows (3)</summary><ul>
+<li><code class='used'>SampleUsedSubflow1</code> — <small>src/main/mule/sampleModule/sample1.xml</small></li>
+<li><code class='used'>SampleUsedSubflow2</code> — <small>src/main/mule/sampleModule/sample2.xml</small></li>
+<li><code class='used'>SampleUsedSubflow3</code> — <small>src/main/mule/sampleModule/sample3.xml</small></li>
+</ul></details>
+<details><summary>configs (12)</summary><ul>
+<li><code class='used'>SampleUsedConfig1</code></li>
+<li><code class='used'>SampleUsedConfig2</code></li>
+<li><code class='used'>SampleUsedConfig3</code></li>
+<li><code class='used'>SampleUsedConfig4</code></li>
+<li><code class='used'>SampleUsedConfig5</code></li>
+<li><code class='used'>SampleUsedConfig6</code></li>
+<li><code class='used'>SampleUsedConfig7</code></li>
+<li><code class='used'>SampleUsedConfig8</code></li>
+<li><code class='used'>SampleUsedConfig9</code></li>
+<li><code class='used'>SampleUsedConfig10</code></li>
+<li><code class='used'>SampleUsedConfig11</code></li>
+<li><code class='used'>SampleUsedConfig12</code></li>
+</ul></details>
+<details><summary>variables (15)</summary><ul>
+<li><code class='used'>sampleVariable1</code> — <small>Flow: SampleUsedFlow1, File: src/main/mule/sampleModule/sample1.xml</small></li>
+<li><code class='used'>sampleVariable2</code> — <small>Flow: SampleUsedFlow2, File: src/main/mule/sampleModule/sample2.xml</small></li>
+<li><code class='used'>sampleVariable3</code> — <small>Flow: SampleUsedFlow3, File: src/main/mule/common/sample3.xml</small></li>
+<li><code class='used'>sampleVariable4</code> — <small>Flow: SampleUsedFlow4, File: src/main/mule/sampleModule/sample4.xml</small></li>
+<li><code class='used'>sampleVariable5</code> — <small>Flow: SampleUsedFlow5, File: src/main/mule/sampleModule/sample5.xml</small></li>
+<li><code class='used'>sampleVariable6</code> — <small>Flow: SampleUsedFlow6, File: src/main/mule/sampleModule/sample6.xml</small></li>
+<li><code class='used'>sampleVariable7</code> — <small>Flow: SampleUsedFlow7, File: src/main/mule/sampleModule/sample7.xml</small></li>
+<li><code class='used'>sampleVariable8</code> — <small>Flow: SampleUsedFlow8, File: src/main/mule/sampleModule/sample8.xml</small></li>
+<li><code class='used'>sampleVariable9</code> — <small>Flow: SampleUsedFlow9, File: src/main/mule/common/sample9.xml</small></li>
+<li><code class='used'>sampleVariable10</code> — <small>Flow: SampleUsedFlow10, File: src/main/mule/sampleModule/sample10.xml</small></li>
+<li><code class='used'>sampleVariable11</code> — <small>Flow: SampleUsedFlow11, File: src/main/mule/sampleModule/sample11.xml</small></li>
+<li><code class='used'>sampleVariable12</code> — <small>Flow: SampleUsedFlow12, File: src/main/mule/sampleModule/sample12.xml</small></li>
+<li><code class='used'>sampleVariable13</code> — <small>Flow: SampleUsedFlow13, File: src/main/mule/sampleModule/sample13.xml</small></li>
+<li><code class='used'>sampleVariable14</code> — <small>Flow: SampleUsedFlow14, File: src/main/mule/sampleModule/sample14.xml</small></li>
+<li><code class='used'>sampleVariable15</code> — <small>Flow: SampleUsedFlow15, File: src/main/mule/sampleModule/sample15.xml</small></li>
+</ul></details>
+<details><summary>env_vars (0)</summary><ul>
+</ul></details>
+<details><summary>property_keys (88)</summary><ul>
+<li><code class='used'>sample.property.key1</code></li>
+<li><code class='used'>sample.property.key2</code></li>
+<li><code class='used'>sample.property.key3</code></li>
+<li><code class='used'>sample.property.key4</code></li>
+<li><code class='used'>sample.property.key5</code></li>
+<li><code class='used'>sample.property.key6</code></li>
+<li><code class='used'>sample.property.key7</code></li>
+<li><code class='used'>sample.property.key8</code></li>
+<li><code class='used'>sample.property.key9</code></li>
+<li><code class='used'>sample.property.key10</code></li>
+<li><code class='used'>sample.property.key11</code></li>
+<li><code class='used'>sample.property.key12</code></li>
+<li><code class='used'>sample.property.key13</code></li>
+<li><code class='used'>sample.property.key14</code></li>
+<li><code class='used'>sample.property.key15</code></li>
+<li><code class='used'>sample.property.key16</code></li>
+<li><code class='used'>sample.property.key17</code></li>
+<li><code class='used'>sample.property.key18</code></li>
+<li><code class='used'>sample.property.key19</code></li>
+<li><code class='used'>sample.property.key20</code></li>
+<li><code class='used'>sample.property.key21</code></li>
+<li><code class='used'>sample.property.key22</code></li>
+<li><code class='used'>sample.property.key23</code></li>
+<li><code class='used'>sample.property.key24</code></li>
+<li><code class='used'>sample.property.key25</code></li>
+<li><code class='used'>sample.property.key26</code></li>
+<li><code class='used'>sample.property.key27</code></li>
+<li><code class='used'>sample.property.key28</code></li>
+<li><code class='used'>sample.property.key29</code></li>
+<li><code class='used'>sample.property.key30</code></li>
+<li><code class='used'>sample.property.key31</code></li>
+<li><code class='used'>sample.property.key32</code></li>
+<li><code class='used'>sample.property.key33</code></li>
+<li><code class='used'>sample.property.key34</code></li>
+<li><code class='used'>sample.property.key35</code></li>
+<li><code class='used'>sample.property.key36</code></li>
+<li><code class='used'>sample.property.key37</code></li>
+<li><code class='used'>sample.property.key38</code></li>
+<li><code class='used'>sample.property.key39</code></li>
+<li><code class='used'>sample.property.key40</code></li>
+<li><code class='used'>sample.property.key41</code></li>
+<li><code class='used'>sample.property.key42</code></li>
+<li><code class='used'>sample.property.key43</code></li>
+<li><code class='used'>sample.property.key44</code></li>
+<li><code class='used'>sample.property.key45</code></li>
+<li><code class='used'>sample.property.key46</code></li>
+<li><code class='used'>sample.property.key47</code></li>
+<li><code class='used'>sample.property.key48</code></li>
+<li><code class='used'>sample.property.key49</code></li>
+<li><code class='used'>sample.property.key50</code></li>
+<li><code class='used'>sample.property.key51</code></li>
+<li><code class='used'>sample.property.key52</code></li>
+<li><code class='used'>sample.property.key53</code></li>
+<li><code class='used'>sample.property.key54</code></li>
+<li><code class='used'>sample.property.key55</code></li>
+<li><code class='used'>sample.property.key56</code></li>
+<li><code class='used'>sample.property.key57</code></li>
+<li><code class='used'>sample.property.key58</code></li>
+<li><code class='used'>sample.property.key59</code></li>
+<li><code class='used'>sample.property.key60</code></li>
+<li><code class='used'>sample.property.key61</code></li>
+<li><code class='used'>sample.property.key62</code></li>
+<li><code class='used'>sample.property.key63</code></li>
+<li><code class='used'>sample.property.key64</code></li>
+<li><code class='used'>sample.property.key65</code></li>
+<li><code class='used'>sample.property.key66</code></li>
+<li><code class='used'>sample.property.key67</code></li>
+<li><code class='used'>sample.property.key68</code></li>
+<li><code class='used'>sample.property.key69</code></li>
+<li><code class='used'>sample.property.key70</code></li>
+<li><code class='used'>sample.property.key71</code></li>
+<li><code class='used'>sample.property.key72</code></li>
+<li><code class='used'>sample.property.key73</code></li>
+<li><code class='used'>sample.property.key74</code></li>
+<li><code class='used'>sample.property.key75</code></li>
+<li><code class='used'>sample.property.key76</code></li>
+<li><code class='used'>sample.property.key77</code></li>
+<li><code class='used'>sample.property.key78</code></li>
+<li><code class='used'>sample.property.key79</code></li>
+<li><code class='used'>sample.property.key80</code></li>
+<li><code class='used'>sample.property.key81</code></li>
+<li><code class='used'>sample.property.key82</code></li>
+<li><code class='used'>sample.property.key83</code></li>
+<li><code class='used'>sample.property.key84</code></li>
+<li><code class='used'>sample.property.key85</code></li>
+<li><code class='used'>sample.property.key86</code></li>
+<li><code class='used'>sample.property.key87</code></li>
+<li><code class='used'>sample.property.key88</code></li>
+</ul></details>
+<details><summary>endpoints (2)</summary><ul>
+<li><code class='used'>SampleEndpointConfig1</code></li>
+<li><code class='used'>SampleEndpointConfig2</code></li>
+</ul></details>
+<details><summary>dw_scripts (0)</summary><ul>
+</ul></details>
+<h2>📦 Declared Items</h2>
+<details><summary>flows (39)</summary><ul>
+<li><code class='declared'>SampleDeclaredFlow1</code></li>
+<li><code class='declared'>SampleDeclaredFlow2</code></li>
+<li><code class='declared'>SampleDeclaredFlow3</code></li>
+<li><code class='declared'>SampleDeclaredFlow4</code></li>
+<li><code class='declared'>SampleDeclaredFlow5</code></li>
+<li><code class='declared'>SampleDeclaredFlow6</code></li>
+<li><code class='declared'>SampleDeclaredFlow7</code></li>
+<li><code class='declared'>SampleDeclaredFlow8</code></li>
+<li><code class='declared'>SampleDeclaredFlow9</code></li>
+<li><code class='declared'>SampleDeclaredFlow10</code></li>
+<li><code class='declared'>SampleDeclaredFlow11</code></li>
+<li><code class='declared'>SampleDeclaredFlow12</code></li>
+<li><code class='declared'>SampleDeclaredFlow13</code></li>
+<li><code class='declared'>SampleDeclaredFlow14</code></li>
+<li><code class='declared'>SampleDeclaredFlow15</code></li>
+<li><code class='declared'>SampleDeclaredFlow16</code></li>
+<li><code class='declared'>SampleDeclaredFlow17</code></li>
+<li><code class='declared'>SampleDeclaredFlow18</code></li>
+<li><code class='declared'>SampleDeclaredFlow19</code></li>
+<li><code class='declared'>SampleDeclaredFlow20</code></li>
+<li><code class='declared'>SampleDeclaredFlow21</code></li>
+<li><code class='declared'>SampleDeclaredFlow22</code></li>
+<li><code class='declared'>SampleDeclaredFlow23</code></li>
+<li><code class='declared'>SampleDeclaredFlow24</code></li>
+<li><code class='declared'>SampleDeclaredFlow25</code></li>
+<li><code class='declared'>SampleDeclaredFlow26</code></li>
+<li><code class='declared'>SampleDeclaredFlow27</code></li>
+<li><code class='declared'>SampleDeclaredFlow28</code></li>
+<li><code class='declared'>SampleDeclaredFlow29</code></li>
+<li><code class='declared'>SampleDeclaredFlow30</code></li>
+<li><code class='declared'>SampleDeclaredFlow31</code></li>
+<li><code class='declared'>SampleDeclaredFlow32</code></li>
+<li><code class='declared'>SampleDeclaredFlow33</code></li>
+<li><code class='declared'>SampleDeclaredFlow34</code></li>
+<li><code class='declared'>SampleDeclaredFlow35</code></li>
+<li><code class='declared'>SampleDeclaredFlow36</code></li>
+<li><code class='declared'>SampleDeclaredFlow37</code></li>
+<li><code class='declared'>SampleDeclaredFlow38</code></li>
+<li><code class='declared'>SampleDeclaredFlow39</code></li>
+</ul></details>
+<details><summary>subflows (3)</summary><ul>
+<li><code class='declared'>SampleDeclaredSubflow1</code> — <small>src/main/mule/sampleModule/sample1.xml</small></li>
+<li><code class='declared'>SampleDeclaredSubflow2</code> — <small>src/main/mule/sampleModule/sample2.xml</small></li>
+<li><code class='declared'>SampleDeclaredSubflow3</code> — <small>src/main/mule/sampleModule/sample3.xml</small></li>
+</ul></details>
+<details><summary>configs (13)</summary><ul>
+<li><code class='declared'>SampleDeclaredConfig1</code></li>
+<li><code class='declared'>SampleDeclaredConfig2</code></li>
+<li><code class='declared'>SampleDeclaredConfig3</code></li>
+<li><code class='declared'>SampleDeclaredConfig4</code></li>
+<li><code class='declared'>SampleDeclaredConfig5</code></li>
+<li><code class='declared'>SampleDeclaredConfig6</code></li>
+<li><code class='declared'>SampleDeclaredConfig7</code></li>
+<li><code class='declared'>SampleDeclaredConfig8</code></li>
+<li><code class='declared'>SampleDeclaredConfig9</code></li>
+<li><code class='declared'>SampleDeclaredConfig10</code></li>
+<li><code class='declared'>SampleDeclaredConfig11</code></li>
+<li><code class='declared'>SampleDeclaredConfig12</code></li>
+<li><code class='declared'>SampleDeclaredConfig13</code></li>
+</ul></details>
+<details><summary>variables (15)</summary><ul>
+<li><code class='declared'>sampleVariable1</code> — <small>Flow: SampleDeclaredFlow1, File: src/main/mule/sampleModule/sample1.xml</small></li>
+<li><code class='declared'>sampleVariable2</code> — <small>Flow: SampleDeclaredFlow2, File: src/main/mule/sampleModule/sample2.xml</small></li>
+<li><code class='declared'>sampleVariable3</code> — <small>Flow: SampleDeclaredFlow3, File: src/main/mule/common/sample3.xml</small></li>
+<li><code class='declared'>sampleVariable4</code> — <small>Flow: SampleDeclaredFlow4, File: src/main/mule/sampleModule/sample4.xml</small></li>
+<li><code class='declared'>sampleVariable5</code> — <small>Flow: SampleDeclaredFlow5, File: src/main/mule/sampleModule/sample5.xml</small></li>
+<li><code class='declared'>sampleVariable6</code> — <small>Flow: SampleDeclaredFlow6, File: src/main/mule/sampleModule/sample6.xml</small></li>
+<li><code class='declared'>sampleVariable7</code> — <small>Flow: SampleDeclaredFlow7, File: src/main/mule/sampleModule/sample7.xml</small></li>
+<li><code class='declared'>sampleVariable8</code> — <small>Flow: SampleDeclaredFlow8, File: src/main/mule/sampleModule/sample8.xml</small></li>
+<li><code class='declared'>sampleVariable9</code> — <small>Flow: SampleDeclaredFlow9, File: src/main/mule/common/sample9.xml</small></li>
+<li><code class='declared'>sampleVariable10</code> — <small>Flow: SampleDeclaredFlow10, File: src/main/mule/sampleModule/sample10.xml</small></li>
+<li><code class='declared'>sampleVariable11</code> — <small>Flow: SampleDeclaredFlow11, File: src/main/mule/sampleModule/sample11.xml</small></li>
+<li><code class='declared'>sampleVariable12</code> — <small>Flow: SampleDeclaredFlow12, File: src/main/mule/sampleModule/sample12.xml</small></li>
+<li><code class='declared'>sampleVariable13</code> — <small>Flow: SampleDeclaredFlow13, File: src/main/mule/sampleModule/sample13.xml</small></li>
+<li><code class='declared'>sampleVariable14</code> — <small>Flow: SampleDeclaredFlow14, File: src/main/mule/sampleModule/sample14.xml</small></li>
+<li><code class='declared'>sampleVariable15</code> — <small>Flow: SampleDeclaredFlow15, File: src/main/mule/sampleModule/sample15.xml</small></li>
+</ul></details>
+<details><summary>env_vars (0)</summary><ul>
+</ul></details>
+<details><summary>property_keys (100)</summary><ul>
+<li><code class='declared'>sample.property.key1</code></li>
+<li><code class='declared'>sample.property.key2</code></li>
+<li><code class='declared'>sample.property.key3</code></li>
+<li><code class='declared'>sample.property.key4</code></li>
+<li><code class='declared'>sample.property.key5</code></li>
+<li><code class='declared'>sample.property.key6</code></li>
+<li><code class='declared'>sample.property.key7</code></li>
+<li><code class='declared'>sample.property.key8</code></li>
+<li><code class='declared'>sample.property.key9</code></li>
+<li><code class='declared'>sample.property.key10</code></li>
+<li><code class='declared'>sample.property.key11</code></li>
+<li><code class='declared'>sample.property.key12</code></li>
+<li><code class='declared'>sample.property.key13</code></li>
+<li><code class='declared'>sample.property.key14</code></li>
+<li><code class='declared'>sample.property.key15</code></li>
+<li><code class='declared'>sample.property.key16</code></li>
+<li><code class='declared'>sample.property.key17</code></li>
+<li><code class='declared'>sample.property.key18</code></li>
+<li><code class='declared'>sample.property.key19</code></li>
+<li><code class='declared'>sample.property.key20</code></li>
+<li><code class='declared'>sample.property.key21</code></li>
+<li><code class='declared'>sample.property.key22</code></li>
+<li><code class='declared'>sample.property.key23</code></li>
+<li><code class='declared'>sample.property.key24</code></li>
+<li><code class='declared'>sample.property.key25</code></li>
+<li><code class='declared'>sample.property.key26</code></li>
+<li><code class='declared'>sample.property.key27</code></li>
+<li><code class='declared'>sample.property.key28</code></li>
+<li><code class='declared'>sample.property.key29</code></li>
+<li><code class='declared'>sample.property.key30</code></li>
+<li><code class='declared'>sample.property.key31</code></li>
+<li><code class='declared'>sample.property.key32</code></li>
+<li><code class='declared'>sample.property.key33</code></li>
+<li><code class='declared'>sample.property.key34</code></li>
+<li><code class='declared'>sample.property.key35</code></li>
+<li><code class='declared'>sample.property.key36</code></li>
+<li><code class='declared'>sample.property.key37</code></li>
+<li><code class='declared'>sample.property.key38</code></li>
+<li><code class='declared'>sample.property.key39</code></li>
+<li><code class='declared'>sample.property.key40</code></li>
+<li><code class='declared'>sample.property.key41</code></li>
+<li><code class='declared'>sample.property.key42</code></li>
+<li><code class='declared'>sample.property.key43</code></li>
+<li><code class='declared'>sample.property.key44</code></li>
+<li><code class='declared'>sample.property.key45</code></li>
+<li><code class='declared'>sample.property.key46</code></li>
+<li><code class='declared'>sample.property.key47</code></li>
+<li><code class='declared'>sample.property.key48</code></li>
+<li><code class='declared'>sample.property.key49</code></li>
+<li><code class='declared'>sample.property.key50</code></li>
+<li><code class='declared'>sample.property.key51</code></li>
+<li><code class='declared'>sample.property.key52</code></li>
+<li><code class='declared'>sample.property.key53</code></li>
+<li><code class='declared'>sample.property.key54</code></li>
+<li><code class='declared'>sample.property.key55</code></li>
+<li><code class='declared'>sample.property.key56</code></li>
+<li><code class='declared'>sample.property.key57</code></li>
+<li><code class='declared'>sample.property.key58</code></li>
+<li><code class='declared'>sample.property.key59</code></li>
+<li><code class='declared'>sample.property.key60</code></li>
+<li><code class='declared'>sample.property.key61</code></li>
+<li><code class='declared'>sample.property.key62</code></li>
+<li><code class='declared'>sample.property.key63</code></li>
+<li><code class='declared'>sample.property.key64</code></li>
+<li><code class='declared'>sample.property.key65</code></li>
+<li><code class='declared'>sample.property.key66</code></li>
+<li><code class='declared'>sample.property.key67</code></li>
+<li><code class='declared'>sample.property.key68</code></li>
+<li><code class='declared'>sample.property.key69</code></li>
+<li><code class='declared'>sample.property.key70</code></li>
+<li><code class='declared'>sample.property.key71</code></li>
+<li><code class='declared'>sample.property.key72</code></li>
+<li><code class='declared'>sample.property.key73</code></li>
+<li><code class='declared'>sample.property.key74</code></li>
+<li><code class='declared'>sample.property.key75</code></li>
+<li><code class='declared'>sample.property.key76</code></li>
+<li><code class='declared'>sample.property.key77</code></li>
+<li><code class='declared'>sample.property.key78</code></li>
+<li><code class='declared'>sample.property.key79</code></li>
+<li><code class='declared'>sample.property.key80</code></li>
+<li><code class='declared'>sample.property.key81</code></li>
+<li><code class='declared'>sample.property.key82</code></li>
+<li><code class='declared'>sample.property.key83</code></li>
+<li><code class='declared'>sample.property.key84</code></li>
+<li><code class='declared'>sample.property.key85</code></li>
+<li><code class='declared'>sample.property.key86</code></li>
+<li><code class='declared'>sample.property.key87</code></li>
+<li><code class='declared'>sample.property.key88</code></li>
+<li><code class='declared'>sample.property.key89</code></li>
+<li><code class='declared'>sample.property.key90</code></li>
+<li><code class='declared'>sample.property.key91</code></li>
+<li><code class='declared'>sample.property.key92</code></li>
+<li><code class='declared'>sample.property.key93</code></li>
+<li><code class='declared'>sample.property.key94</code></li>
+<li><code class='declared'>sample.property.key95</code></li>
+<li><code class='declared'>sample.property.key96</code></li>
+<li><code class='declared'>sample.property.key97</code></li>
+<li><code class='declared'>sample.property.key98</code></li>
+<li><code class='declared'>sample.property.key99</code></li>
+<li><code class='declared'>sample.property.key100</code></li>
+</ul></details>
+<details><summary>endpoints (2)</summary><ul>
+<li><code class='declared'>SampleDeclaredEndpointConfig1</code></li>
+<li><code class='declared'>SampleDeclaredEndpointConfig2</code></li>
+</ul></details>
+<details><summary>dw_scripts (2)</summary><ul>
+<li><code class='declared'>src/main/resources/modules/samplemodule1.dwl</code></li>
+<li><code class='declared'>src/main/resources/modules/samplemodule2.dwl</code></li>
+</ul></details>
+<h2>📄 Files Processed</h2><ul>
+<li>xml_files (17):
+<ul>
+<li><code>sample_file1.xml</code></li>
+<li><code>src/main/mule/sampleModule/sample_file2.xml</code></li>
+<li><code>src/main/resources/sample_file3.xml</code></li>
+<li><code>src/main/resources/sample_file4.xml</code></li>
+<li><code>src/main/resources/examples/sample_file5.xml</code></li>
+<li><code>src/main/resources/examples/sample_file6.xml</code></li>
+<li><code>src/main/mule/common/sample_file7.xml</code></li>
+<li><code>src/main/mule/common/sample_file8.xml</code></li>
+<li><code>src/main/mule/common/sample_file9.xml</code></li>
+<li><code>src/main/mule/sampleModule/sample_file10.xml</code></li>
+<li><code>src/main/mule/sampleModule/sample_file11.xml</code></li>
+<li><code>src/main/mule/sampleModule/sample_file12.xml</code></li>
+<li><code>src/main/mule/sampleModule/sample_file13.xml</code></li>
+<li><code>src/main/mule/sampleModule/sample_file14.xml</code></li>
+<li><code>src/main/mule/sampleModule/sample_file15.xml</code></li>
+<li><code>src/main/mule/sampleModule/sample_file16.xml</code></li>
+<li><code>src/main/mule/sampleModule/sample_file17.xml</code></li>
+</ul></li>
+<li>dwl_files (2):
+<ul>
+<li><code>src/main/resources/modules/sample_module1.dwl</code></li>
+<li><code>src/main/resources/modules/sample_module2.dwl</code></li>
+</ul></li>
+<li>yaml_files (3):
+<ul>
+<li><code>src/main/resources/sample_config1.yaml</code></li>
+<li><code>src/main/resources/sample_config2.yaml</code></li>
+<li><code>src/main/resources/sample_config3.yaml</code></li>
+</ul></li>
+</ul>
+</body>
+</html>
