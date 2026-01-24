@@ -1,6 +1,29 @@
-# Mule Package Validator
+# 🤖 GitHub Copilot CLI–Powered MuleSoft Code Review Assistant
 
-This Python utility validates a MuleSoft package for dependency management, flow/component count, API specifications, configuration files, code quality, and logging practices.
+An AI-assisted CLI tool that uses GitHub Copilot CLI to perform
+intelligent code reviews on MuleSoft projects — identifying orphan flows,
+unused dependencies, quality violations, and architecture risks.
+
+## Why GitHub Copilot CLI?
+
+MuleSoft projects often contain complex XML configurations that are
+hard to review manually. This project combines:
+
+- A Python-based static analysis engine for MuleSoft projects
+- GitHub Copilot CLI as a natural-language interface
+
+This allows developers to perform code reviews using simple prompts like:
+
+copilot ask "Review this MuleSoft repo for orphan flows"
+copilot ask "List all flows and subflows and highlight risks"
+
+## Copilot CLI Examples
+
+Examples of how this tool can be used with GitHub Copilot CLI:
+
+- "Scan this MuleSoft repository for unused or orphaned flows"
+- "Explain which subflows are not referenced anywhere"
+- "Generate a code quality report for this MuleSoft project"
 
 ## Features
 
