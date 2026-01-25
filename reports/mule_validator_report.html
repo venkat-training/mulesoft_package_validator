@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Mule Validation Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }
+
+        .section-desc {
+            color: #888;
+            font-size: 0.98em;
+            margin-bottom: 10px;
+            margin-top: -18px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #e9e9e9;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .placeholder {
+            color: #aaa;
+            font-style: italic;
+        }
+
+        .warning {
+            color: red;
+            font-weight: bold;
+        }
+
+        .summary-banner.pass {
+            background: #e6fffa;
+        }
+
+        .summary-banner.warn {
+            background: #fffbea;
+        }
+
+        .summary-banner.fail {
+            background: #ffe6e6;
+        }
+
+        .status.pass {
+            color: green;
+        }
+
+        .status.warn {
+            color: orange;
+        }
+
+        .badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .badge.pass {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge.warn {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+
+<body>
+    <p style="text-align: center;">
+        <strong>Report Generated:</strong> 2026-01-25 19:01:36<br>
+        <strong>Validation Started:</strong> 2026-01-25 19:01:36<br>
+        <strong>Duration:</strong> N/A
+    </p>
+    <div class="summary-banner warn">
+        <h1>Validation Status: WARN</h1>
+        <p>Project: sbs-ott-restrictions</p>
+        <p>Branch: {{ git_branch }}</p>
+        <p>Validated on: 2026-01-25 19:01:36</p>
+    </div>
+
+    <h2>Quality Metrics Scorecard</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Metric</th>
+                <th>Value</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>API Spec Found</td><td>No</td><td><span class='badge fail'>FAIL</span></td></tr><tr><td>APIkit Router Found</td><td>N/A</td><td><span class='badge fail'>FAIL</span></td></tr>
+        </tbody>
+    </table>
+
+    <div class="container">
+        <h1>Mule Validation Report</h1>
+        <p style="text-align: center;"><strong>Git Branch:</strong> Unknown</p>
+
+        <h2>Threshold Warnings</h2>
+        <p class="section-desc">
+            Warnings for build size, total flows, sub-flows, and components exceeding predefined thresholds.
+        </p>
+        <div id="threshold-warnings">
+            <p>No threshold warnings.</p>
+        </div>
+
+        <h2>Code Review Issues</h2>
+        <p class="section-desc">
+            Highlights potential code quality, best practice, or anti-pattern issues found in Mule flow XML files.
+        </p>
+        <div id="code-review-issues">
+            <p>No code review issues found.</p>
+        </div>
+
+        <h2>YAML Validation Results</h2>
+        <p class="section-desc">
+            Checks YAML configuration files for syntax errors, schema violations, or missing required fields.
+        </p>
+        <div id="yaml-validation-results">
+            <p>No YAML validation results found.</p>
+        </div>
+
+        <h2>Dependency Validation Results</h2>
+        <p class="section-desc">
+            Validates Maven dependencies by checking for missing, unresolved, or duplicate dependencies in all
+            <code>pom.xml</code> files.
+        </p>
+        <div id="dependency-validation-results">
+            <p>No dependency issues found.</p>
+        </div>
+
+        <h2>Flow Validation Results</h2>
+        <p class="section-desc">
+            Analyzes Mule flows and sub-flows for complexity, size, and best practices (e.g., too many flows, sub-flows,
+            or components).
+        </p>
+        <div id="flow-validation-results">
+            <p>No flow validation issues found.</p>
+        </div>
+
+        <h2>API Validation Results</h2>
+        <p class="section-desc">
+            Validates API specifications and their implementation, ensuring RAML/OAS files are present and APIkit
+            routers/configs are correctly set up.
+        </p>
+        <div id="api-validation-results">
+            <p>No API validation issues found.</p>
+        </div>
+
+        <h2>Project Uses Mule Secure Properties</h2>
+        <p class="section-desc">
+            Checks if the project uses Mule Secure Properties for sensitive configuration values, promoting secure
+            handling of secrets.
+        </p>
+        <div id="secure-properties-results">
+            <p>No secure properties validation result.</p>
+        </div>
+
+        <h2>Logging Validation Results</h2>
+        <p class="section-desc">
+            Reviews logger usage in flows and the Log4j configuration for risky patterns (e.g., too many loggers,
+            DEBUG/TRACE levels in production).
+        </p>
+        <div id="logging-validation-results">
+            <p>No logging issues found.</p>
+        </div>
+
+        <h2>Orphan Checker Results</h2>
+        <p class="section-desc">
+            Identifies any orphaned flows, sub-flows, or resources not referenced in the project.
+        </p>
+        <div id="orphan-validation-results">
+            <p>No orphan issues found.</p>
+        </div>
+    </div>
+
+    <footer style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #666; border-top: 1px solid #ddd; padding-top: 10px;">
+        Mule Validator v1.0.0<br>
+        Python 3.14.0<br>
+        Generated at 2026-01-25 19:01:36
+    </footer>
+</body>
+
+</html>
