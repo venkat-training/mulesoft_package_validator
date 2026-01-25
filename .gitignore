@@ -1,13 +1,9 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Distribution / packaging
+*.so
 .Python
-env/
-venv/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -20,65 +16,39 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# Unit test / coverage reports
-.coverage
-.tox/
-.cache/
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Pytest
-.pytest_cache/
-
-# VS Code
-.vscode/
-
-# macOS
-.DS_Store
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# Python virtual environments
+# Virtual environments
 venv/
 ENV/
 env/
-env.bak/
-venv.bak/
 
-# Editor and IDE files
-.idea/
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+
+# IDE
 .vscode/
+.idea/
 *.swp
 *.swo
 *~
-*.sublime-workspace
-*.sublime-project
 
-# PyCharm
-.idea/
-*.iml
-*.iws
+# OS
+.DS_Store
+Thumbs.db
 
-#Reports
-reports/
+# Project specific
+*.html
+!report_template.html
+test_report_output.html
+*.log
+
+# Temporary files
+*.tmp
+*.bak

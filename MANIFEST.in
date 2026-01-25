@@ -1,0 +1,8 @@
+include README.md
+include LICENSE
+include requirements.txt
+include submission_checklist.md
+recursive-include mule_validator *.html
+recursive-include tests *.py
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
