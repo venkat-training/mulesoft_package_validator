@@ -30,9 +30,9 @@ class TestConsoleReporter(unittest.TestCase):
         all_results = {
             'yaml_validation': [
                 {'file_name': 'config-prod.yaml', 'status': 'Valid', 'message': '', 'type': 'Mandatory'},
-                {'file_name': 'config-dev.yaml', 'status': 'InvalidSyntax', 'message': 'Bad indent', 'type': 'Optional'}, # Corrected status
-                {'file_name': 'secrets.yaml', 'status': 'SecurityWarning', 'message': 'Potential secret at path user.password. Key: password. Type: Keyword. Description: Contains sensitive keyword.', # Shortened for test
-                 'type': 'Optional', # Assuming security warnings can also be optional/mandatory for file presence
+                {'file_name': 'config-dev.yaml', 'status': 'InvalidSyntax', 'message': 'Bad indent', 'type': 'Optional'},
+                {'file_name': 'secrets.yaml', 'status': 'SecurityWarning', 'message': 'Potential secret at path user.password. Key: password. Type: Keyword. Description: Contains sensitive keyword.',
+                 'type': 'Optional',
                  'details': {'path': 'user.password', 'key': 'password', 'value_excerpt': 'secret123...', 'issue_type': 'Keyword'}
                 }
             ]
@@ -53,7 +53,6 @@ class TestConsoleReporter(unittest.TestCase):
         self.assertIn("Value Excerpt: \"secret123...\"", output)
         self.assertIn("TOTAL SECURITY WARNINGS FOUND: 1", output)
 
-
     def test_report_yaml_resources_dir_error(self):
         all_results = {
             'yaml_validation': [
@@ -65,7 +64,6 @@ class TestConsoleReporter(unittest.TestCase):
         self.assertIn("--- YAML VALIDATION ---", output)
         self.assertIn("ERROR: Resources directory not found...", output)
         self.assertNotIn("Mandatory Configuration Files:", output)
-
 
     def test_report_dependency_validation_with_pom_secrets(self):
         all_results = {
@@ -93,7 +91,6 @@ class TestConsoleReporter(unittest.TestCase):
         self.assertIn("Location: Element: <project.properties.db.password>", output)
         self.assertIn("TOTAL SECURITY WARNINGS FOUND: 1", output)
 
-
     def test_report_flow_validation_error_message(self):
         all_results = {
             'flow_validation': {
@@ -107,28 +104,49 @@ class TestConsoleReporter(unittest.TestCase):
         output = sys.stdout.getvalue()
         self.assertIn("--- FLOW VALIDATION ---", output)
         self.assertIn("ERROR: Mule source directory does not exist: path/to/src/main/mule", output)
-        self.assertNotIn("| Category", output) # No table
+        self.assertNotIn("| Category", output)  # No table
 
     def test_report_api_validation_structure(self):
-        # Assuming api_validator returns a dict like this based on its docstring
+        """Test API validation output format"""
+        # Test when API spec and router are found
+        # The reporter checks for 'api_spec_found' and 'api_definition_flow_found'
         all_results = {
             'api_validation': {
-                'api_spec_dependency': "group:artifact:1.0:raml:zip",
-                'api_spec_zip_found': True,
-                'apikit_router_file': "my-api.xml",
-                'apikit_router_found': True,
-                'notes': ["Optional note here"]
+                'api_spec_found': True,  # Changed from api_spec_zip_found
+                'api_spec_files': ["specs/my-api-spec.raml"],  # Added for completeness
+                'api_definition_flow_found': True,  # Changed from apikit_router_found
+                'api_definition_flows': ["src/main/mule/my-api.xml"]  # Added for completeness
             }
         }
-        # The current reporter.py has a simple print for api_validation dicts
-        # It doesn't iterate 'notes'. It prints the dict as-is.
+        
         reporter.generate_console_report(all_results)
         output = sys.stdout.getvalue()
+        
         self.assertIn("--- API VALIDATION ---", output)
-        # This will print the string representation of the dict.
-        self.assertIn("'api_spec_dependency': 'group:artifact:1.0:raml:zip'", output)
-        self.assertIn("'notes': ['Optional note here']", output)
+        # The reporter formats API validation with Yes/No based on the boolean values
+        self.assertIn("API Specifications Found: Yes", output)
+        self.assertIn("API Definition Flows Found: Yes", output)
+        # Check that the file paths are also printed
+        self.assertIn("specs/my-api-spec.raml", output)
+        self.assertIn("src/main/mule/my-api.xml", output)
 
+    def test_report_api_validation_not_found(self):
+        """Test API validation when spec/router not found"""
+        all_results = {
+            'api_validation': {
+                'api_spec_found': False,  # Changed from api_spec_zip_found
+                'api_spec_files': [],
+                'api_definition_flow_found': False,  # Changed from apikit_router_found
+                'api_definition_flows': []
+            }
+        }
+        
+        reporter.generate_console_report(all_results)
+        output = sys.stdout.getvalue()
+        
+        self.assertIn("--- API VALIDATION ---", output)
+        self.assertIn("API Specifications Found: No", output)
+        self.assertIn("API Definition Flows Found: No", output)
 
     def test_report_code_reviewer_structure_and_security(self):
         # This test assumes code_reviewer results are structured as list of dicts
@@ -140,7 +158,7 @@ class TestConsoleReporter(unittest.TestCase):
                 {'file_path': 'b.xml', 'type': 'HardcodedSecretXML',
                  'xml_path': 'db.password', 'attribute_name': None,
                  'value_excerpt': 'secret...', 'message': 'Hardcoded password in text',
-                 'issue_type': 'Hardcoded Secret'} # issue_type for _print_security_warning
+                 'issue_type': 'Hardcoded Secret'}
             ]
         }
         reporter.generate_console_report(all_results)
@@ -153,7 +171,7 @@ class TestConsoleReporter(unittest.TestCase):
         self.assertIn("File: b.xml", output)
         self.assertIn("- Flow name too long", output)
         self.assertIn("XML Code Security Warnings:", output)
-        self.assertIn("[SECURITY WARNING] (Hardcoded Secret)", output) # issue_type used here
+        self.assertIn("[SECURITY WARNING] (Hardcoded Secret)", output)
         self.assertIn("File: b.xml", output)
         self.assertIn("Location: Element: <db.password>", output)
         self.assertIn("TOTAL SECURITY WARNINGS FOUND: 1", output)
@@ -174,7 +192,6 @@ class TestConsoleReporter(unittest.TestCase):
         self.assertIn("'log4j_warnings': ['Root is DEBUG']", output)
         self.assertIn("DEBUG found", output)
 
-
     def test_report_total_security_warnings_multiple_sections(self):
         all_results = {
             'yaml_validation': [
@@ -186,7 +203,7 @@ class TestConsoleReporter(unittest.TestCase):
                     {'file_path': 'pom.xml', 'xml_path': 'prop', 'message': 'secret prop', 'issue_type': 'Hardcoded Secret'}
                 ]
             },
-             'code_reviewer': [
+            'code_reviewer': [
                 {'file_path': 'b.xml', 'type': 'HardcodedSecretXML',
                  'xml_path': 'db.password', 'message': 'Hardcoded password in text',
                  'issue_type': 'Hardcoded Secret'}

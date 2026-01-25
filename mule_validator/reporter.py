@@ -72,6 +72,10 @@ def generate_console_report(all_results: Dict[str, Any]) -> None:
 
     if not all_results:
         print("No validation results to report.")
+        # Don't return early - print the end section
+        print("\n" + "="*80)
+        print("END OF REPORT")
+        print("="*80 + "\n")
         return
 
     total_security_warnings = 0
@@ -177,22 +181,24 @@ def generate_console_report(all_results: Dict[str, Any]) -> None:
 
         elif validation_type == 'flow_validation':
             if isinstance(results, dict):
-                total_counts = results.get('total_counts', {})
-                flows_count = total_counts.get('flows', 'N/A')
-                sub_flows_count = total_counts.get('sub_flows', 'N/A')
-                components_count = total_counts.get('components', 'N/A')
-
-                max_flows = results.get('max_flows_limit', 'N/A')
-                max_sub_flows = results.get('max_sub_flows_limit', 'N/A')
-                max_components = results.get('max_components_limit', 'N/A')
-
-                flows_status = 'OK' if results.get('flows_ok', True) else 'Exceeded'
-                sub_flows_status = 'OK' if results.get('sub_flows_ok', True) else 'Exceeded'
-                components_status = 'OK' if results.get('components_ok', True) else 'Exceeded'
-                
+                # Check for error message first
                 if results.get('total_counts') is None and results.get('message'):
-                     print(f"  ERROR: {results.get('message')}")
+                    print(f"  ERROR: {results.get('message')}")
                 else:
+                    # Get total_counts or default to empty dict if None
+                    total_counts = results.get('total_counts') or {}
+                    flows_count = total_counts.get('flows', 'N/A')
+                    sub_flows_count = total_counts.get('sub_flows', 'N/A')
+                    components_count = total_counts.get('components', 'N/A')
+
+                    max_flows = results.get('max_flows_limit', 'N/A')
+                    max_sub_flows = results.get('max_sub_flows_limit', 'N/A')
+                    max_components = results.get('max_components_limit', 'N/A')
+
+                    flows_status = 'OK' if results.get('flows_ok', True) else 'Exceeded'
+                    sub_flows_status = 'OK' if results.get('sub_flows_ok', True) else 'Exceeded'
+                    components_status = 'OK' if results.get('components_ok', True) else 'Exceeded'
+                    
                     table_data = [
                         ["Flows", flows_count, max_flows, flows_status],
                         ["Sub-flows", sub_flows_count, max_sub_flows, sub_flows_status],

@@ -86,7 +86,8 @@ def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
     if summary:
         html += "<h2>Summary</h2><ul>"
         for key, value in summary.items():
-            html += f"<li><b>{key}:</b> {value}</li>"
+            display_key = key.replace("_", " ").title()
+            html += f"<li><b>{display_key}:</b> {value}</li>"
         html += "</ul>"
 
     # --- Orphans by category
@@ -158,6 +159,18 @@ def generate_orphan_report_page(orphan_results: Dict[str, Any], project_name: st
 </body>
 </html>"""
     return html_page
+
+
+def _format_threshold_warnings(threshold_warnings: List[str]) -> str:
+    if not threshold_warnings:
+        return "<p>No threshold warnings available.</p>"
+
+    html = "<ul>"
+    for warning in threshold_warnings:
+        html += f"<li>{warning}</li>"
+    html += "</ul>"
+    return html
+
 
 # -------------------------
 # Main Report Generation
@@ -279,6 +292,30 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
             logs_html += "<h4>Log4j Warnings</h4>"
             logs_html += _format_data_to_html(log4j_warnings)
 
+    # -------------------------
+    # Threshold warnings
+    # -------------------------
+    threshold_warnings = []
+
+    # Explicit threshold warnings (if provided)
+    explicit_thresholds = all_results.get("threshold_warnings", [])
+    if explicit_thresholds:
+        threshold_warnings.extend(explicit_thresholds)
+
+    # Auto-generate build size warning
+    dependency_validation = all_results.get("dependency_validation", {})
+    if isinstance(dependency_validation, dict):
+        build_size = dependency_validation.get("build_size_mb")
+        if isinstance(build_size, (int, float)) and build_size > 100:
+            threshold_warnings.append(
+                f"Build size exceeds threshold: {build_size} MB"
+            )
+
+    html_content = html_content.replace(
+        "{{threshold_warnings}}",
+        _format_threshold_warnings(threshold_warnings)
+    )
+
     # Fallback if nothing to display
     if not logs_html:
         logs_html = "<p>No logging issues detected.</p>"
@@ -288,7 +325,7 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
 
     # -- Fallbacks for any remaining placeholders
     fallbacks = {
-        "{{threshold_warnings}}": "<p>No threshold warnings available.</p>",
+        
         "{{code_review_issues_table}}": "<p>No code review issues detected.</p>",
         "{{yaml_validation_results_table}}": "<p>No YAML validation issues found.</p>",
         "{{dependency_validation_results_table}}": "<p>No dependency issues found.</p>",
