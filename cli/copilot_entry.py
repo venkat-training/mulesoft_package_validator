@@ -14,20 +14,16 @@ from mule_validator.main import run
 
 def run_full_review(path):
     print(f"\n🔍 Running full MuleSoft code review on: {path}\n")
-    # Calls your existing main logic
-    run(path)
+    run(path, mode="full")
 
 def run_list_flows(path):
     print(f"\n📄 Listing flows and subflows in: {path}\n")
-    # Your existing validator_main prints details including flows
-    run(path, list_flows=True)
+    run(path, mode="list-flows")
 
 def run_orphan_check(path):
     print(f"\n🚨 Checking for orphan flows in: {path}\n")
-    # Your validator_main logic doesn’t have a native orphan-only flag,
-    # so reuse the full scan and filter orphan parts in the output
-    run(path, orphan_check=True)
-
+    run(path, mode="orphan-check")
+    
 def main():
     parser = argparse.ArgumentParser(
         description="Copilot CLI entry for MuleSoft code review"
