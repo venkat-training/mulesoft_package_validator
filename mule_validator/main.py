@@ -14,6 +14,7 @@ import logging
 import sys
 import os
 import datetime
+import shutil
 from .dependency_validator import validate_all_projects
 from .flow_validator import validate_flows_in_package
 from .code_reviewer import review_all_files
@@ -24,6 +25,17 @@ from .html_reporter import generate_html_report
 from .mule_orphan_checker import MuleComprehensiveOrphanChecker
 
 logger = logging.getLogger(__name__)
+
+
+def get_maven_command():
+    """
+    Resolves the Maven executable correctly across platforms.
+    On Windows, this resolves mvn.cmd or mvn.bat.
+    """
+    mvn_cmd = shutil.which("mvn")
+    if mvn_cmd:
+        return mvn_cmd
+    return None
 
 def get_current_git_branch(repo_path):
     """
@@ -60,12 +72,20 @@ def ensure_maven_and_build(project_dir: str) -> None:
     """
     try:
         # Check Maven version
+        mvn_cmd = get_maven_command()
+
+        if not mvn_cmd:
+            print("ERROR: Maven command 'mvn' not found. Ensure Maven is installed and in PATH.")
+            logger.error("Maven command 'mvn' not found during version check.")
+            sys.exit(1)
+
         result_mvn_version = subprocess.run(
-            ["mvn", "-v"],
+            [mvn_cmd, "-v"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
         )
+
         if result_mvn_version.returncode != 0:
             print("ERROR: Maven not found. Please install Maven and ensure it's in PATH.")
             logger.error(f"Maven version check failed. Output: {result_mvn_version.stdout} Error: {result_mvn_version.stderr}")
@@ -82,7 +102,7 @@ def ensure_maven_and_build(project_dir: str) -> None:
     logger.info(f"Running 'mvn clean install -DskipTests' in directory: {project_dir}")
     try:
         build_process = subprocess.run(
-            ["mvn", "clean", "install", "-DskipTests"],
+            [mvn_cmd, "clean", "install", "-DskipTests"],
             cwd=project_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -146,6 +166,7 @@ def main() -> None:
     )
     parser.add_argument('package_folder_path', type=str, help='MuleSoft package folder path.')
     parser.add_argument('--report-file', type=str, help='Path to save HTML report.')
+    parser.add_argument('--orphan-report-file', type=str, help='Path to save separate orphan HTML report.')
     parser.add_argument('--build-folder-path', type=str, default=None, help='Path to MuleSoft build folder.')
     threshold_group = parser.add_argument_group('Validation Thresholds')
     threshold_group.add_argument('--max-build-size-mb', type=int, default=100)
@@ -241,29 +262,35 @@ def main() -> None:
 
     # HTML Report
     if args.report_file:
-        try:
-            with open('mule_validator/report_template.html', 'r') as f_template:
-                template_content = f_template.read()
-            report_html = generate_html_report(all_results, template_content)
-            with open(args.report_file, 'w') as f:
-                f.write(report_html)
-            print(f"\nHTML report generated at: {args.report_file}")
+        os.makedirs(os.path.dirname(args.report_file), exist_ok=True)
+    if args.orphan_report_file:
+        os.makedirs(os.path.dirname(args.orphan_report_file), exist_ok=True)
+    try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(current_dir, "report_template.html")
+        with open(template_path, "r", encoding="utf-8") as f_template:
+            template_content = f_template.read()
+            
+        report_html = generate_html_report(all_results, template_content)
+        with open(args.report_file, 'w') as f:
+            f.write(report_html)
+        print(f"\nHTML report generated at: {args.report_file}")
 
-            # Orphan report separately
-            orphan_html_path = args.report_file.replace('.html', '_orphan.html')
-            if hasattr(orphan_checker, "_generate_html_report"):
-                orphan_checker._generate_html_report(orphan_results, orphan_html_path)
-                print(f"Orphan HTML report generated at: {orphan_html_path}")
-        except FileNotFoundError:
-            print("Error: HTML template not found. Report not generated.")
-        except Exception as e:
-            print(f"Error generating HTML report: {e}")
+        # Orphan report separately if requested
+        if args.orphan_report_file and hasattr(orphan_checker, "_generate_html_report"):
+            orphan_checker._generate_html_report(orphan_results, args.orphan_report_file)
+            print(f"Orphan HTML report generated at: {args.orphan_report_file}")
 
+    except FileNotFoundError:
+        print("Error: HTML template not found. Report not generated.")
+    except Exception as e:
+        print(f"Error generating HTML report: {e}")
 
 def run(
     package_folder_path: str,
     mode: str = "full",
     report_file: str | None = None,
+    orphan_report_file: str | None = None,
     max_flows: int = 100,
     max_sub_flows: int = 50,
     max_components: int = 500,
@@ -320,11 +347,20 @@ def run(
     }
 
     if report_file:
-        with open('mule_validator/report_template.html', 'r') as f:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(current_dir, "report_template.html")
+
+        with open(template_path, "r", encoding="utf-8") as f:
             template_content = f.read()
-        report_html = generate_html_report(results, template_content)
+            report_html = generate_html_report(results, template_content)
         with open(report_file, 'w') as f:
             f.write(report_html)
+
+    if orphan_report_file:
+        orphan_checker = MuleComprehensiveOrphanChecker(package_folder_path)
+        orphan_results = orphan_checker.run()
+        if hasattr(orphan_checker, "_generate_html_report"):
+            orphan_checker._generate_html_report(orphan_results, orphan_report_file)
 
     return results
 

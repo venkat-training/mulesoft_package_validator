@@ -1,0 +1,196 @@
+<html><head><meta charset="UTF-8"><title>MuleSoft Orphan Report</title>
+
+        <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2 { color: #333; }
+        summary { font-weight: bold; cursor: pointer; }
+        details { margin-bottom: 1em; }
+        code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+        .orphan { color: red; }
+        .used { color: green; }
+        .declared { color: #555; }
+        </style>
+        </head><body>
+        
+<h1>MuleSoft Orphan Report</h1>
+<h2>Summary</h2><ul>
+<li><b>total_orphaned_items:</b> 10</li>
+<li><b>orphan_flows_count:</b> 1</li>
+<li><b>orphan_subflows_count:</b> 2</li>
+<li><b>orphan_configs_count:</b> 0</li>
+<li><b>orphan_variables_count:</b> 0</li>
+<li><b>orphan_env_vars_count:</b> 0</li>
+<li><b>orphan_property_keys_count:</b> 7</li>
+<li><b>orphan_error_handlers_count:</b> 0</li>
+<li><b>orphan_exception_strategies_count:</b> 0</li>
+<li><b>orphan_endpoints_count:</b> 0</li>
+<li><b>orphan_dw_scripts_count:</b> 0</li>
+</ul>
+<h2>🛑 Orphan Items</h2>
+<details><summary>flows (1)</summary><ul>
+<li><code class='orphan'>restrictionCodeGeneratorFlow</code> — <small>src\main\mule\archiveflow.xml</small></li>
+</ul></details>
+<details><summary>subflows (2)</summary><ul>
+<li><code class='orphan'>restrictioncalc_v1</code> — <small>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='orphan'>restrictioncalc_v2</code> — <small>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\restrictioncalc.xml</small></li>
+</ul></details>
+<details><summary>configs (0)</summary><ul>
+</ul></details>
+<details><summary>variables (0)</summary><ul>
+</ul></details>
+<details><summary>env_vars (0)</summary><ul>
+</ul></details>
+<details><summary>property_keys (7)</summary><ul>
+<li><code class='orphan'>http.localhost</code></li>
+<li><code class='orphan'>http.port</code></li>
+<li><code class='orphan'>http.private.port</code></li>
+<li><code class='orphan'>https.basepath</code></li>
+<li><code class='orphan'>https.localhost</code></li>
+<li><code class='orphan'>https.port</code></li>
+<li><code class='orphan'>https.saepath</code></li>
+</ul></details>
+<details><summary>error_handlers (0)</summary><ul>
+</ul></details>
+<details><summary>exception_strategies (0)</summary><ul>
+</ul></details>
+<details><summary>endpoints (0)</summary><ul>
+</ul></details>
+<details><summary>dw_scripts (0)</summary><ul>
+</ul></details>
+<h2>✅ Used Items</h2>
+<details><summary>flows (4)</summary><ul>
+<li><code class='used'>diagnosticFlow</code> — <small>src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>restrictionUIFlow</code> — <small>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>restrictioncalcFlow</code> — <small>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>restrictioncalculationNewFlow</code> — <small>src\main\mule\restrictioncalc.xml</small></li>
+</ul></details>
+<details><summary>subflows (2)</summary><ul>
+<li><code class='used'>authentication-subflow</code> — <small>src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>restrictioncalc_v3</code> — <small>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\restrictioncalc.xml</small></li>
+</ul></details>
+<details><summary>configs (1)</summary><ul>
+<li><code class='used'>HTTPS_Listener_config</code></li>
+</ul></details>
+<details><summary>variables (8)</summary><ul>
+<li><code class='used'>authHeader</code> — <small>Flow: authentication-subflow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>encodedCredentials</code> — <small>Flow: authentication-subflow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>hasAuthHeader</code> — <small>Flow: restrictionUIFlow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>httpStatus</code> — <small>Flow: restrictionUIFlow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>password</code> — <small>Flow: authentication-subflow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>username</code> — <small>Flow: authentication-subflow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>wwwAuth</code> — <small>Flow: restrictionUIFlow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='used'>wwwAuthenticate</code> — <small>Flow: restrictioncalcFlow, File: src\main\mule\restrictioncalc.xml</small></li>
+</ul></details>
+<details><summary>env_vars (0)</summary><ul>
+</ul></details>
+<details><summary>property_keys (5)</summary><ul>
+<li><code class='used'>api.password</code></li>
+<li><code class='used'>api.username</code></li>
+<li><code class='used'>https.keystore.file</code></li>
+<li><code class='used'>https.keystore.pass</code></li>
+<li><code class='used'>https.private.port</code></li>
+</ul></details>
+<details><summary>error_handlers (0)</summary><ul>
+</ul></details>
+<details><summary>exception_strategies (0)</summary><ul>
+</ul></details>
+<details><summary>endpoints (1)</summary><ul>
+<li><code class='used'>HTTPS_Listener_config</code></li>
+</ul></details>
+<details><summary>dw_scripts (0)</summary><ul>
+</ul></details>
+<h2>📦 Declared Items</h2>
+<details><summary>flows (5)</summary><ul>
+<li><code class='declared'>diagnosticFlow</code></li>
+<li><code class='declared'>restrictionCodeGeneratorFlow</code></li>
+<li><code class='declared'>restrictionUIFlow</code></li>
+<li><code class='declared'>restrictioncalcFlow</code></li>
+<li><code class='declared'>restrictioncalculationNewFlow</code></li>
+</ul></details>
+<details><summary>subflows (4)</summary><ul>
+<li><code class='declared'>authentication-subflow</code> — <small>src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>restrictioncalc_v1</code> — <small>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>restrictioncalc_v2</code> — <small>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>restrictioncalc_v3</code> — <small>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\restrictioncalc.xml</small></li>
+</ul></details>
+<details><summary>configs (1)</summary><ul>
+<li><code class='declared'>HTTPS_Listener_config</code></li>
+</ul></details>
+<details><summary>variables (8)</summary><ul>
+<li><code class='declared'>authHeader</code> — <small>Flow: authentication-subflow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>encodedCredentials</code> — <small>Flow: authentication-subflow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>hasAuthHeader</code> — <small>Flow: restrictionUIFlow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>httpStatus</code> — <small>Flow: restrictionUIFlow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>password</code> — <small>Flow: authentication-subflow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>username</code> — <small>Flow: authentication-subflow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>wwwAuth</code> — <small>Flow: restrictionUIFlow, File: src\main\mule\restrictioncalc.xml</small></li>
+<li><code class='declared'>wwwAuthenticate</code> — <small>Flow: restrictioncalcFlow, File: src\main\mule\restrictioncalc.xml</small></li>
+</ul></details>
+<details><summary>env_vars (0)</summary><ul>
+</ul></details>
+<details><summary>property_keys (12)</summary><ul>
+<li><code class='declared'>api.password</code></li>
+<li><code class='declared'>api.username</code></li>
+<li><code class='declared'>http.localhost</code></li>
+<li><code class='declared'>http.port</code></li>
+<li><code class='declared'>http.private.port</code></li>
+<li><code class='declared'>https.basepath</code></li>
+<li><code class='declared'>https.keystore.file</code></li>
+<li><code class='declared'>https.keystore.pass</code></li>
+<li><code class='declared'>https.localhost</code></li>
+<li><code class='declared'>https.port</code></li>
+<li><code class='declared'>https.private.port</code></li>
+<li><code class='declared'>https.saepath</code></li>
+</ul></details>
+<details><summary>error_handlers (0)</summary><ul>
+</ul></details>
+<details><summary>exception_strategies (0)</summary><ul>
+</ul></details>
+<details><summary>endpoints (1)</summary><ul>
+<li><code class='declared'>HTTPS_Listener_config</code></li>
+</ul></details>
+<details><summary>dw_scripts (0)</summary><ul>
+</ul></details>
+<h2>📄 Files Processed</h2><ul>
+<li>xml_files (29):
+<ul>
+<li><code>pom.xml</code></li>
+<li><code>src\main\mule\archiveflow.xml</code></li>
+<li><code>src\main\mule\restrictioncalc.xml</code></li>
+<li><code>src\main\resources\application-types.xml</code></li>
+<li><code>src\main\resources\log4j2.xml</code></li>
+<li><code>src\main\mule\common\global-config.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalcf217e4\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalcf217e4\src\main\mule\common\global-config.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalcc1b6a4\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalcc1b6a4\src\main\mule\common\global-config.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalcbbcaff\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalcb8ac0a\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalcac5abc\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalca12702\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalca12702\src\main\mule\common\global-config.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalc422082\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalc422082\src\main\mule\common\global-config.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalc3d00fc\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalc2ed0d1\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalc2ed0d1\src\main\mule\common\global-config.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalc2e746c\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalc17e5e9\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalc17e5e9\src\main\mule\common\global-config.xml</code></li>
+<li><code>.tooling-project\temp\sbs-ott-restrictioncalc04eb4a\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\cached\sbs-ott-restrictioncalc\pom.xml</code></li>
+<li><code>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\restrictioncalc.xml</code></li>
+<li><code>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\resources\application-types.xml</code></li>
+<li><code>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\resources\log4j2.xml</code></li>
+<li><code>.tooling-project\cached\sbs-ott-restrictioncalc\src\main\mule\common\global-config.xml</code></li>
+</ul></li>
+<li>dwl_files (0):
+<ul>
+</ul></li>
+<li>yaml_files (1):
+<ul>
+<li><code>src\main\resources\config-nonprod.yaml</code></li>
+</ul></li>
+</ul>
+</body>
+</html>
