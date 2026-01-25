@@ -297,5 +297,124 @@ def main() -> None:
         except Exception as e:
             print(f"\nError generating HTML report: {e}")
 
+def run(
+    package_folder_path: str,
+    mode: str = "full",
+    report_file: str | None = None,
+    max_flows: int = 100,
+    max_sub_flows: int = 50,
+    max_components: int = 500,
+):
+    """
+    Programmatic entry point for Copilot CLI and other automation.
+
+    mode:
+    - full         : run complete validation
+    - list-flows   : list flows and subflows only
+    - orphan-check : run orphan flow detection only
+    """
+
+    start_time = datetime.datetime.now()
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+
+    logger.info(f"Running MuleSoft validator in '{mode}' mode")
+
+    # Maven build is required for all modes
+    ensure_maven_and_build(package_folder_path)
+
+    # === LIST FLOWS MODE ==========================================
+    if mode == "list-flows":
+        logger.info("Listing flows and subflows only")
+
+        flow_validation_results = validate_flows_in_package(
+            package_folder_path,
+            max_flows=max_flows,
+            max_sub_flows=max_sub_flows,
+            max_components=max_components
+        )
+
+        print("\nFLOWS & SUBFLOWS")
+        print("----------------")
+        for k, v in flow_validation_results.items():
+            print(f"{k}: {v}")
+
+        return flow_validation_results
+
+    # === ORPHAN CHECK MODE ========================================
+    if mode == "orphan-check":
+        logger.info("Running orphan flow analysis only")
+
+        orphan_checker = MuleComprehensiveOrphanChecker(package_folder_path)
+        orphan_report = orphan_checker.run()
+
+        print("\nORPHAN FLOWS REPORT")
+        print("------------------")
+
+        if "summary" in orphan_report:
+            for k, v in orphan_report["summary"].items():
+                print(f"{k}: {v}")
+
+        return orphan_report
+
+    # === FULL REVIEW MODE (DEFAULT) ===============================
+    logger.info("Running full MuleSoft package validation")
+
+    code_reviewer_results, project_uses_secure_properties = review_all_files(package_folder_path)
+    yaml_validation_results = validate_files(package_folder_path, project_uses_secure_properties)
+    dependency_validation_results = validate_all_projects(package_folder_path)
+
+    flow_validation_results = validate_flows_in_package(
+        package_folder_path,
+        max_flows=max_flows,
+        max_sub_flows=max_sub_flows,
+        max_components=max_components
+    )
+
+    api_validation_results = validate_api_spec_and_flows(package_folder_path)
+    logging_validation_results = validate_logging(package_folder_path)
+
+    git_branch_name = get_current_git_branch(package_folder_path)
+
+    orphan_checker = MuleComprehensiveOrphanChecker(package_folder_path)
+    orphan_report = orphan_checker.run()
+
+    end_time = datetime.datetime.now()
+    duration = end_time - start_time
+
+    results = {
+        'yaml_validation': yaml_validation_results,
+        'dependency_validation': dependency_validation_results,
+        'flow_validation': flow_validation_results,
+        'api_validation': api_validation_results,
+        'code_reviewer_issues': code_reviewer_results,
+        'project_uses_secure_properties': project_uses_secure_properties,
+        'logging_validation': logging_validation_results,
+        'git_branch_name': git_branch_name,
+        'orphan_checker': orphan_report,
+        'duration': str(duration),
+    }
+
+    if report_file:
+        with open('mule_validator/report_template.html', 'r') as f:
+            template_content = f.read()
+        report_content = generate_html_report(results, template_content)
+        with open(report_file, 'w') as f:
+            f.write(report_content)
+
+    return results
+
+
 if __name__ == '__main__':
-    main()
+    run(
+    package_folder_path=args.package_folder_path,
+    mode="full",
+    report_file=args.report_file,
+    max_flows=args.max_flows,
+    max_sub_flows=args.max_sub_flows,
+    max_components=args.max_components
+    )
