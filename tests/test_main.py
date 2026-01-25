@@ -1,9 +1,7 @@
 import unittest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock,mock_open
 import sys
-import argparse
 import datetime # For mocking datetime
-import os # For path joining if needed in assertions
 
 # Import the main function to be tested
 from mule_validator.main import main

@@ -132,11 +132,10 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
                 # Not Mule encrypted. Now check for other issues, considering filename context.
 
                 # 1. Generic Secret Pattern Check
-                # Only apply if NOT in a filename context. Paths can sometimes look like generic secrets.
-                if not is_filename_context:
-                    is_potential_generic_secret = GENERIC_SECRET_PATTERN.match(value_str)
-                    if is_potential_generic_secret:
-                        issues.append(f"WARNING: Value for key '{current_full_key_name}' appears to be a generic secret/API key and is not Mule encrypted. Value excerpt: '{value_str[:10]}...'")
+                # Check for generic secrets regardless of filename context, as filenames shouldn't look like secrets
+                is_potential_generic_secret = GENERIC_SECRET_PATTERN.match(value_str)
+                if is_potential_generic_secret:
+                    issues.append(f"WARNING: Value for key '{current_full_key_name}' appears to be a generic secret/API key and is not Mule encrypted. Value excerpt: '{value_str[:10]}...'")
 
                 # 2. Sensitive Keyword Check
                 # Only apply if NOT in a filename context.
@@ -168,7 +167,7 @@ def check_yaml_content_rules(file_path, project_uses_secure_properties):
 # contains one of these keywords.
 TARGET_CONFIG_KEYWORDS = [
     'host', 'hostname', 'ip', 'ipaddress',
-    'password', 'secret', 'apikey', 'token',
+    'password', 'secret', 'key', 'apikey', 'token',
     'url', 'uri', 'endpoint'
 ]
 

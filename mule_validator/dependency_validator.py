@@ -105,12 +105,12 @@ def find_secrets_in_pom_xml(root, pom_file_path):
                 'issue_type': 'Hardcoded Secret',
                 'message': f"Element tag <{element_tag_for_path}> matches a password keyword and contains text."
             })
-        elif element_tag_lower in LOWERCASE_GENERIC_SECRET_KEYWORDS and element.text:
+        elif any(k in element_tag_lower for k in LOWERCASE_GENERIC_SECRET_KEYWORDS) and (element.text or len(element.attrib) > 0):
             issues.append({
                 'file_path': pom_file_path, 'xml_path': element_tag_for_path, 'element_tag': element.tag,
                 'attribute_name': None, 'value_excerpt': (element.text or "")[:50] + ('...' if len(element.text or "") > 50 else ''),
                 'issue_type': 'Hardcoded Secret',
-                'message': f"Element tag <{element_tag_for_path}> matches a generic secret keyword and contains text."
+                'message': f"Element tag <{element_tag_for_path}> matches a generic secret keyword and contains text or attributes."
             })
 
         # 2. Check element text content

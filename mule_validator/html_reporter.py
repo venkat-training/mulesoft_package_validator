@@ -207,8 +207,86 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     html_content = html_content.replace('{{ timestamp }}', all_results.get('timestamp', 'Unknown'))
     html_content = html_content.replace('{{ python_version }}', all_results.get('python_version', 'Unknown'))
     # -------------------------
-# Fallback replacements for unimplemented sections
-# -------------------------
+    # Fallback replacements for unimplemented sections
+    # -------------------------
+    # -- Code review issues
+    code_review_issues = all_results.get('code_reviewer_issues')
+    if code_review_issues:
+        html_content = html_content.replace(
+            "{{code_review_issues_table}}",
+            _format_data_to_html(code_review_issues, headers=["File", "Severity", "Comment"])
+        )
+    # -- YAML validation
+    yaml_validation = all_results.get('yaml_validation')
+    if yaml_validation:
+        html_content = html_content.replace(
+            "{{yaml_validation_results_table}}",
+            _format_data_to_html(yaml_validation, headers=["File/Item", "Error Type", "Details"])
+        )
+    # -- Dependency validation
+    dependency_validation = all_results.get('dependency_validation')
+    if dependency_validation:
+        html_content = html_content.replace(
+            "{{dependency_validation_results_table}}",
+            _format_data_to_html(dependency_validation)
+        )
+
+    # -- Flow validation
+    flow_validation = all_results.get('flow_validation')
+    if flow_validation:
+        html_content = html_content.replace(
+            "{{flow_validation_results_table}}",
+            _format_data_to_html(flow_validation)
+        )
+
+    # -- API validation
+    api_validation = all_results.get('api_validation')
+    if api_validation:
+        html_content = html_content.replace(
+            "{{api_validation_results_table}}",
+            _format_data_to_html(api_validation)
+        )
+
+    # -- Components validation
+    components_validation = all_results.get('components_validator')
+    if components_validation:
+        html_content = html_content.replace(
+            "{{components_validation_results_table}}",
+            _format_data_to_html(components_validation)
+        )
+
+    # -- Secure properties (True/False)
+    secure_properties = all_results.get('project_uses_secure_properties')
+    if secure_properties is not None:
+        html_content = html_content.replace(
+            "{{secure_properties_status}}",
+            f"<p>{secure_properties}</p>"
+        )
+    
+    # -- Logging validation
+    logging_validation = all_results.get('logging_validation')
+    logs_html = ""
+
+    if logging_validation:
+        # Logger issues
+        logger_issues = logging_validation.get("logger_issues", [])
+        if logger_issues:
+            logs_html += "<h4>Logger Issues</h4>"
+            logs_html += _format_data_to_html(logger_issues)
+        # Log4j warnings
+        log4j_warnings = logging_validation.get("log4j_warnings", [])
+        if log4j_warnings:
+            logs_html += "<h4>Log4j Warnings</h4>"
+            logs_html += _format_data_to_html(log4j_warnings)
+
+    # Fallback if nothing to display
+    if not logs_html:
+        logs_html = "<p>No logging issues detected.</p>"
+
+    # Replace placeholder
+    html_content = html_content.replace("{{logging_validation_results_table}}", logs_html)
+
+    # -- Fallbacks for any remaining placeholders
     fallbacks = {
         "{{threshold_warnings}}": "<p>No threshold warnings available.</p>",
         "{{code_review_issues_table}}": "<p>No code review issues detected.</p>",
@@ -216,7 +294,8 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
         "{{dependency_validation_results_table}}": "<p>No dependency issues found.</p>",
         "{{flow_validation_results_table}}": "<p>No flow validation issues found.</p>",
         "{{api_validation_results_table}}": "<p>No API validation issues found.</p>",
-        "{{secure_properties_status}}": "<p>Not evaluated.</p>",
+        "{{components_validation_results_table}}": "<p>Data not available.</p>",
+        "{{secure_properties_status}}": f"<p>{all_results.get('project_uses_secure_properties', 'Not evaluated')}</p>",
         "{{logging_validation_results_table}}": "<p>No logging issues detected.</p>",
     }
 

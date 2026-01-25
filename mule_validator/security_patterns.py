@@ -52,8 +52,8 @@ GENERIC_SECRET_KEYWORDS = [
 # Regex patterns designed to match the *values* of common secret formats.
 # These patterns identify strings that look like API keys, tokens, or other encoded secrets.
 GENERIC_SECRET_VALUE_PATTERNS = [
-    r"[a-zA-Z0-9+/=]{32,}", # Base64-like strings, common for tokens (min length 32)
-    r"ey[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.(?:[A-Za-z0-9_-]{20,})?", # JWT-like pattern (more flexible)
+    r"[a-zA-Z0-9+/=\.\-_]{32,}", # Base64-like strings, common for tokens (min length 32)
+    r"ey[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}(?:\.[A-Za-z0-9_-]*)?", # JWT-like pattern (more flexible)
     r"(?:sk|pk)_(?:test|live)_[0-9a-zA-Z]{10,}", # Stripe-like API keys
     r"AIza[0-9A-Za-z\-_]{35}", # Google API Key like pattern
     r"AKIA[0-9A-Z]{16}", # AWS Access Key ID like pattern
