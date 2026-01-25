@@ -59,12 +59,24 @@
             color: #aaa;
             font-style: italic;
         }
+        .warning {
+            color: red;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Mule Validation Report</h1>
         <p style="text-align: center;"><strong>Git Branch:</strong> {{git_branch_name}}</p>
+
+        <h2>Threshold Warnings</h2>
+        <p class="section-desc">
+            Warnings for build size, total flows, sub-flows, and components exceeding predefined thresholds.
+        </p>
+        <div id="threshold-warnings">
+            {{threshold_warnings}}
+        </div>
 
         <h2>Code Review Issues</h2>
         <p class="section-desc">
@@ -105,7 +117,7 @@
         <div id="api-validation-results">
             {{api_validation_results_table}}
         </div>
-        
+
         <h2>Project Uses Mule Secure Properties</h2>
         <p class="section-desc">
             Checks if the project uses Mule Secure Properties for sensitive configuration values, promoting secure handling of secrets.
@@ -120,6 +132,14 @@
         </p>
         <div id="logging-validation-results">
             {{logging_validation_results_table}}
+        </div>
+
+        <h2>Orphan Checker Results</h2>
+        <p class="section-desc">
+            Identifies any orphaned flows, sub-flows, or resources not referenced in the project.
+        </p>
+        <div id="orphan-validation-results">
+            {{orphan_validation_results_table}}
         </div>
     </div>
 </body>

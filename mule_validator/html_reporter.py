@@ -8,7 +8,14 @@ a single HTML output string.
 
 The module uses the `tabulate` library to format list-based data into HTML tables.
 It also includes functionality to fetch the current Git branch name.
+Additionally, this version includes threshold warnings for:
+- Build size
+- Total flows
+- Sub-flows
+- Total components
+and support for orphan checker results.
 """
+
 import subprocess
 from tabulate import tabulate
 from typing import Any, Union, List, Dict
@@ -57,25 +64,25 @@ def _format_data_to_html(data, headers="firstrow"):
         return "<p>No data available.</p>"
 
     if isinstance(data, list):
-        if not data: # Empty list
+        if not data:  # Empty list
             return "<p>No data available.</p>"
-        if all(isinstance(item, list) for item in data): # List of lists
+        if all(isinstance(item, list) for item in data):  # List of lists
             return tabulate(data, headers=headers, tablefmt='html')
-        elif all(isinstance(item, str) for item in data): # List of strings
+        elif all(isinstance(item, str) for item in data):  # List of strings
             items_html = "".join(f"<li>{item}</li>" for item in data)
             return f"<ul>{items_html}</ul>"
-        else: # List of other items
+        else:  # List of other items
             items_html = "".join(f"<li>{str(item)}</li>" for item in data)
             return f"<ul>{items_html}</ul>"
     elif isinstance(data, dict):
-        if not data: # Empty dict
+        if not data:  # Empty dict
             return "<p>No data available.</p>"
         # Simple key-value table for dicts
         table_rows = "".join(f"<tr><td>{key}</td><td>{str(value)}</td></tr>" for key, value in data.items())
         return f"<table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>{table_rows}</tbody></table>"
     elif isinstance(data, str):
-        return f"<p>{data}</p>" # Wrap plain strings in a paragraph
-    else: # For other data types (int, bool, etc.)
+        return f"<p>{data}</p>"  # Wrap plain strings in a paragraph
+    else:  # For other data types (int, bool, etc.)
         return f"<p>{str(data)}</p>"
 
 def generate_html_report(all_results: Dict[str, Any], template_string: str) -> str:
@@ -83,46 +90,46 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     Generates an HTML report by populating placeholders in a template string
     with validation results.
 
-    The `all_results` dictionary is expected to contain keys corresponding to
-    different validation categories (e.g., 'code_reviewer_issues', 'yaml_validation').
-    The data under these keys is formatted into HTML (often tables or lists)
-    and substituted into the `template_string` where corresponding placeholders
-    (e.g., `{{code_review_issues_table}}`) are found.
-
-    Expected keys in `all_results` and their typical data structures:
-    - 'code_reviewer_issues' (list[list[str]]): Issues from code review.
-    - 'yaml_validation' (list[list[str]]): Results from YAML file validation.
-    - 'dependency_validation' (dict): Results from POM dependency validation.
-        - Keys are POM file paths, values are dicts with "missing_jars",
-          "unresolved_dependencies", "duplicate_dependencies".
-    - 'flow_validation' (dict | list): Results from flow validation.
-        - If dict, contains counts and status flags.
-        - If list (older format), directly formatted.
-    - 'api_validation' (dict | list): Results from API validation.
-        - If dict, contains API spec and APIkit router status.
-        - If list (older format), directly formatted.
-    - 'project_uses_secure_properties' (bool | None): Status of Mule Secure Properties usage.
-    - 'logging_validation' (dict): Results from logging configuration validation.
-        - Contains "logger_issues" and "log4j_warnings".
-    - 'git_branch_name' (str): Name of the current Git branch.
-    - 'report_start_time' (str): Timestamp when the report generation started.
-    - 'report_end_time' (str): Timestamp when the report generation ended.
-    - 'report_duration' (str): Duration of the report generation.
-
-    Placeholders in `template_string` (e.g., `{{placeholder_name}}`) are replaced.
-    If data for a placeholder is missing or empty, a default message like
-    "<p>No data available.</p>" or "<p>No issues found.</p>" is used.
-
-    Args:
-        all_results (Dict[str, Any]): A dictionary containing all validation results.
-        template_string (str): The HTML template string with placeholders.
-
-    Returns:
-        str: The populated HTML report content.
+    This version includes threshold warnings and orphan checker results.
     """
     html_content = template_string
 
+    # -------------------------
+    # Threshold Warnings
+    # -------------------------
+    thresholds = all_results.get("thresholds", {})
+    threshold_warnings = []
+
+    max_build_size = thresholds.get("max_build_size_mb", 100)
+    max_flows = thresholds.get("max_flows", 100)
+    max_sub_flows = thresholds.get("max_sub_flows", 50)
+    max_components = thresholds.get("max_components", 500)
+
+    build_size_mb = all_results.get("dependency_validation", {}).get("build_size_mb", 0)
+    if build_size_mb > max_build_size:
+        threshold_warnings.append(f"Build size {build_size_mb} MB exceeds maximum allowed {max_build_size} MB.")
+
+    flow_stats = all_results.get("flow_validation", {})
+    total_flows = flow_stats.get("total_flows", 0)
+    total_sub_flows = flow_stats.get("total_sub_flows", 0)
+    total_components = flow_stats.get("total_components", 0)
+
+    if total_flows > max_flows:
+        threshold_warnings.append(f"Total flows {total_flows} exceed maximum allowed {max_flows}.")
+    if total_sub_flows > max_sub_flows:
+        threshold_warnings.append(f"Total sub-flows {total_sub_flows} exceed maximum allowed {max_sub_flows}.")
+    if total_components > max_components:
+        threshold_warnings.append(f"Total components {total_components} exceed maximum allowed {max_components}.")
+
+    if threshold_warnings:
+        warnings_html = "<ul>" + "".join(f"<li class='warning'>{msg}</li>" for msg in threshold_warnings) + "</ul>"
+        html_content = html_content.replace("{{threshold_warnings}}", warnings_html)
+    else:
+        html_content = html_content.replace("{{threshold_warnings}}", "<p>No threshold warnings.</p>")
+
+    # -------------------------
     # 1. Code Review Issues
+    # -------------------------
     code_review_issues = all_results.get('code_reviewer_issues')
     if code_review_issues:
         code_review_table = tabulate(code_review_issues, headers=["File Name", "Status", "Issue"], tablefmt='html')
@@ -143,6 +150,8 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     has_dep_issues = False
     if isinstance(dependency_results, dict) and dependency_results:
         for pom_path, dep_info in dependency_results.items():
+            if pom_path == "build_size_mb":  # skip build size entry
+                continue
             rows = []
             if dep_info.get("missing_jars"):
                 for jar in dep_info["missing_jars"]:
@@ -220,19 +229,22 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     else:
         html_content = html_content.replace('{{logging_validation_results_table}}', "<p>No logging issues found.</p>")
 
-    # Fallback for any placeholders not explicitly handled, to avoid them showing in the report
-    html_content = html_content.replace('{{code_review_issues_table}}', "<p>Data not available.</p>")
-    html_content = html_content.replace('{{yaml_validation_results_table}}', "<p>Data not available.</p>")
-    html_content = html_content.replace('{{dependency_validation_results_table}}', "<p>Data not available.</p>")
-    html_content = html_content.replace('{{flow_validation_results_table}}', "<p>Data not available.</p>")
-    html_content = html_content.replace('{{api_validation_results_table}}', "<p>Data not available.</p>")
-    html_content = html_content.replace('{{secure_properties_status}}', "<p>Data not available.</p>")
-    html_content = html_content.replace('{{logging_validation_results_table}}', "<p>Data not available.</p>")
+    # 8. Orphan Checker Results
+    orphan_results = all_results.get("orphan_checker")
+    html_content = html_content.replace('{{orphan_validation_results_table}}', _format_data_to_html(orphan_results))
+
+    # Fallbacks for any placeholders not explicitly handled
+    placeholders = ['code_review_issues_table', 'yaml_validation_results_table',
+                    'dependency_validation_results_table', 'flow_validation_results_table',
+                    'api_validation_results_table', 'secure_properties_status',
+                    'logging_validation_results_table']
+    for ph in placeholders:
+        html_content = html_content.replace(f'{{{{{ph}}}}}', "<p>Data not available.</p>")
 
     # Add Git branch name
     branch_name = all_results.get('git_branch_name', 'Unknown')
     html_content = html_content.replace('{{git_branch_name}}', branch_name)
-    
+
     # Add report start and end time
     html_content = html_content.replace('{{report_start_time}}', all_results.get('report_start_time', 'N/A'))
     html_content = html_content.replace('{{report_end_time}}', all_results.get('report_end_time', 'N/A'))
