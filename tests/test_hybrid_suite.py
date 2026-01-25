@@ -1,9 +1,11 @@
 """
-Hybrid Test Suite: HTML Report + API Validation
+Hybrid Test Suite for MuleSoft Validation
 
-- Combines html_report_generation tests with api_validator tests.
-- Full unit and integration coverage.
-- Run with:
+- Combines HTML report generation tests and API validator tests
+- Fully mocked for isolated testing
+- Supports integration test with real template if available
+
+Run with:
     python -m unittest tests/test_hybrid_suite.py
 """
 
@@ -13,26 +15,23 @@ import unittest
 from unittest.mock import patch, MagicMock
 import xml.etree.ElementTree as ET
 
-# -------------------------
-# Ensure mule_validator import works
-# -------------------------
+# Add repo root to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from mule_validator.html_reporter import generate_html_report
-from mule_validator import api_validator
+
+from mule_validator import html_reporter, api_validator
 
 # -------------------------
-# Constants
+# Constants for testing
 # -------------------------
-SRC_MAIN_MULE_PATH_NAME = "src/main/mule"
-API_SPEC_DEP_CLASSIFIER = "raml"
-API_SPEC_DEP_TYPE = "zip"
 APIKIT_NAMESPACE_URIS = [
     "http://www.mulesoft.org/schema/mule/apikit",
     "http://www.mulesoft.org/schema/mule/mule-apikit"
 ]
 
+SRC_MAIN_MULE_PATH_NAME = "src/main/mule"
+
 # -------------------------
-# Dummy HTML Template
+# Dummy HTML template
 # -------------------------
 DUMMY_TEMPLATE = """
 <html>
@@ -78,7 +77,7 @@ DUMMY_TEMPLATE = """
 """
 
 # -------------------------
-# Mock Results for HTML
+# Mock results
 # -------------------------
 MOCK_RESULTS = {
     "report_start_time": "2026-01-25 08:00:00",
@@ -110,8 +109,8 @@ MOCK_RESULTS = {
     ],
     "yaml_validation": {"application.yaml": "OK", "db.yaml": "Missing host"},
     "flow_validation": [
-        {"Flow Name": "flow1", "Components": 10, "Status": "PASS", "sub_flows_count": 1},
-        {"Flow Name": "flow2", "Components": 12, "Status": "WARN", "sub_flows_count": 2},
+        {"Flow Name": "flow1", "Components": 10, "Status": "PASS"},
+        {"Flow Name": "flow2", "Components": 12, "Status": "WARN"},
     ],
     "flow_validation_stats": {
         "total_flows": 6,
@@ -139,12 +138,12 @@ MOCK_RESULTS = {
 # -------------------------
 class TestHybridSuite(unittest.TestCase):
 
-    # -------------------------
-    # HTML REPORT VALIDATION
-    # -------------------------
+    # ---------------------
+    # HTML Report Tests
+    # ---------------------
     def _validate_badges(self, html: str):
         for badge in ["PASS", "WARN", "ERROR", "WARNING"]:
-            self.assertIn(badge, html)
+            self.assertIn(badge, html, f"Badge {badge} missing in HTML output")
 
     def _validate_orphan_section(self, html: str):
         self.assertIn("Total Orphans", html)
@@ -156,69 +155,105 @@ class TestHybridSuite(unittest.TestCase):
         for msg in ["Build size", "Total flows", "Total sub-flows", "Total components"]:
             self.assertIn(msg, html)
 
-    def test_html_unit_dummy_template(self):
-        html = generate_html_report(MOCK_RESULTS, DUMMY_TEMPLATE)
-        self.assertIn("MuleTestProject", html)
-        self.assertIn("flow1.xml", html)
-        self.assertIn("db.yaml", html)
-        self.assertIn("Orders", html)
-        self._validate_badges(html)
-        self._validate_orphan_section(html)
-        self._validate_threshold_warnings(html)
+    def test_html_report_dummy_template(self):
+        html_output = html_reporter.generate_html_report(MOCK_RESULTS, DUMMY_TEMPLATE)
+        self.assertIn("<html", html_output)
+        self.assertIn("MuleTestProject", html_output)
+        self.assertIn("flow1.xml", html_output)
+        self.assertIn("db.yaml", html_output)
+        self.assertIn("Orders", html_output)
+        self._validate_badges(html_output)
+        self._validate_orphan_section(html_output)
+        self._validate_threshold_warnings(html_output)
 
-    def test_html_integration_real_template(self):
+    def test_html_report_real_template(self):
         template_path = os.path.join(os.path.dirname(__file__), os.pardir, "report_template.html")
         if not os.path.exists(template_path):
             self.skipTest("Real template not found, skipping integration test.")
         with open(template_path, "r", encoding="utf-8") as f:
-            template = f.read()
-        html = generate_html_report(MOCK_RESULTS, template)
-        self.assertIn("MuleTestProject", html)
-        self._validate_badges(html)
-        self._validate_orphan_section(html)
-        self._validate_threshold_warnings(html)
-        out_file = os.path.join(os.path.dirname(__file__), "test_report_output.html")
-        with open(out_file, "w", encoding="utf-8") as f:
-            f.write(html)
-        print(f"Integration HTML report generated at {out_file}")
+            real_template = f.read()
+        html_output = html_reporter.generate_html_report(MOCK_RESULTS, real_template)
+        self.assertIn("<html", html_output)
+        self.assertIn("MuleTestProject", html_output)
+        self._validate_badges(html_output)
+        self._validate_orphan_section(html_output)
+        self._validate_threshold_warnings(html_output)
 
-    # -------------------------
-    # API VALIDATION
-    # -------------------------
-    def _create_mock_pom(self, has_raml=True, group="com.example", artifact="my-api-spec", version="1.0.0"):
+    # ---------------------
+    # API Validator Tests
+    # ---------------------
+    def _mock_pom_tree(self, has_raml=True):
         if has_raml:
-            return ET.fromstring(f"""
+            content = f"""
             <project xmlns="http://maven.apache.org/POM/4.0.0">
                 <dependencies>
                     <dependency>
-                        <groupId>{group}</groupId>
-                        <artifactId>{artifact}</artifactId>
-                        <version>{version}</version>
-                        <classifier>{API_SPEC_DEP_CLASSIFIER}</classifier>
-                        <type>{API_SPEC_DEP_TYPE}</type>
+                        <groupId>com.example</groupId>
+                        <artifactId>my-api-spec</artifactId>
+                        <version>1.0.0</version>
+                        <classifier>raml</classifier>
+                        <type>zip</type>
                     </dependency>
                 </dependencies>
             </project>
-            """)
-        return ET.fromstring("<project xmlns='http://maven.apache.org/POM/4.0.0'><dependencies/></project>")
+            """
+        else:
+            content = "<project xmlns='http://maven.apache.org/POM/4.0.0'><dependencies></dependencies></project>"
+        return ET.fromstring(content)
 
-    def _create_mock_mule(self, has_router=True, ns_index=0):
-        ns = APIKIT_NAMESPACE_URIS[ns_index]
+    def _mock_mule_tree(self, has_router=True, ns_index=0):
+        ns_uri = APIKIT_NAMESPACE_URIS[ns_index]  # <- fixed reference
         if has_router:
-            return ET.fromstring(f"""
+            mule_content = f"""
             <mule xmlns="http://www.mulesoft.org/schema/mule/core"
-                  xmlns:apikit="{ns}">
+                  xmlns:apikit="{ns_uri}">
                 <flow name="api-main">
                     <apikit:router config-ref="api-config"/>
                 </flow>
                 <apikit:config name="api-config" raml="api.raml"/>
             </mule>
-            """)
-        return ET.fromstring("<mule xmlns='http://www.mulesoft.org/schema/mule/core'><flow name='f'><logger/></flow></mule>")
+            """
+        else:
+            mule_content = """
+            <mule xmlns="http://www.mulesoft.org/schema/mule/core">
+                <flow name="some-flow">
+                    <logger message="Hello"/>
+                </flow>
+            </mule>
+            """
+        return ET.fromstring(mule_content)
 
-    # Here, all API validator tests from original suite can be copied
-    # ...including test_all_conditions_met, test_raml_dependency_missing, test_raml_zip_not_in_target, etc.
-    # For brevity, these are omitted but can be copy-pasted directly from original test_api_validator.py
+    @patch('os.path.isfile')
+    @patch('xml.etree.ElementTree.parse')
+    @patch('os.walk')
+    @patch('os.path.basename')
+    @patch('os.path.abspath')
+    def test_api_validator_all_conditions_met(self, mock_abspath, mock_basename, mock_os_walk, mock_et_parse, mock_isfile):
+        project_path = "/dummy/project/test"
+        mock_abspath.return_value = project_path
+        mock_basename.return_value = "test"
+
+        mock_isfile.side_effect = lambda path: True
+        mock_pom_tree = MagicMock()
+        mock_pom_tree.getroot.return_value = self._mock_pom_tree()
+        mock_mule_tree = MagicMock()
+        mock_mule_tree.getroot.return_value = self._mock_mule_tree()
+
+        def et_parse_side_effect(path):
+            if path.endswith("pom.xml"):
+                return mock_pom_tree
+            return mock_mule_tree
+        mock_et_parse.side_effect = et_parse_side_effect
+
+        mock_os_walk.return_value = [(os.path.join(project_path, "target"), [], ["my-api-spec-1.0.0-raml.zip"])]
+
+        results = api_validator.validate_api_spec_and_flows(project_path)
+
+        self.assertTrue(results['api_spec_zip_found'])
+        self.assertTrue(results['apikit_router_found'])
+        self.assertEqual(results['apikit_router_file'], "test.xml")
+        self.assertEqual(results['api_spec_dependency'], "com.example:my-api-spec:1.0.0:raml:zip")
+        self.assertEqual(len(results['notes']), 0)
 
 if __name__ == "__main__":
     unittest.main()

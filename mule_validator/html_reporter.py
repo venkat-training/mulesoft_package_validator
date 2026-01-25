@@ -58,7 +58,6 @@ def _format_data_to_html(data: Any, headers: Union[str, List[str]] = "firstrow")
     if not data:
         return "<p>No data available.</p>"
 
-    # List handling
     if isinstance(data, list):
         if all(isinstance(item, list) for item in data):
             return tabulate(data, headers=headers, tablefmt='html')
@@ -67,12 +66,10 @@ def _format_data_to_html(data: Any, headers: Union[str, List[str]] = "firstrow")
         else:
             return "<ul>" + "".join(f"<li>{str(item)}</li>" for item in data) + "</ul>"
 
-    # Dictionary handling
     if isinstance(data, dict):
         table_rows = "".join(f"<tr><td>{key}</td><td>{str(value)}</td></tr>" for key, value in data.items())
         return f'<table class="table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>{table_rows}</tbody></table>'
 
-    # String or other types
     return f"<p>{str(data)}</p>"
 
 def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
@@ -84,7 +81,6 @@ def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
 
     html = ""
 
-    # Summary
     summary = orphan_results.get("summary", {})
     if summary:
         html += "<h4>Summary</h4>"
@@ -94,15 +90,13 @@ def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
             html += f"<tr><td>{display_key}</td><td>{value}</td></tr>"
         html += "</tbody></table>"
 
-    # Orphaned Items
     orphans = orphan_results.get("orphans", {})
     if orphans:
         html += "<h4>Orphaned Items</h4>"
         for category, items in orphans.items():
             if items:
                 display_category = category.replace('_', ' ').title()
-                html += f"<h5>{display_category}</h5>"
-                html += "<ul>"
+                html += f"<h5>{display_category}</h5><ul>"
                 for item in items:
                     if isinstance(item, tuple) and len(item) == 2:
                         html += f"<li><strong>{item[0]}</strong> (in {item[1]})</li>"
@@ -110,11 +104,9 @@ def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
                         html += f"<li>{item}</li>"
                 html += "</ul>"
 
-    # Validation Errors
     validation_errors = orphan_results.get("validation_errors", [])
     if validation_errors:
-        html += "<h4>Validation Errors</h4>"
-        html += "<ul>"
+        html += "<h4>Validation Errors</h4><ul>"
         for error in validation_errors:
             html += f"<li>{error}</li>"
         html += "</ul>"
@@ -157,16 +149,24 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     max_sub_flows = thresholds.get("max_sub_flows", 50)
     max_components = thresholds.get("max_components", 500)
 
-    # Check build size
     build_size_mb = all_results.get("dependency_validation", {}).get("build_size_mb", 0)
     if build_size_mb > max_build_size:
         threshold_warnings.append(f"Build size {build_size_mb} MB exceeds maximum allowed {max_build_size} MB.")
 
-    # Check flow, sub-flow, and component counts
-    flow_stats = all_results.get("flow_validation", {})
-    total_flows = flow_stats.get("total_flows", 0)
-    total_sub_flows = flow_stats.get("total_sub_flows", 0)
-    total_components = flow_stats.get("total_components", 0)
+    # Adjusted: flow_validation_stats can be dict or compute from list
+    flow_stats = all_results.get("flow_validation_stats")
+    flow_results = all_results.get("flow_validation", [])
+    if flow_stats is None:
+        if isinstance(flow_results, list):
+            total_flows = len(flow_results)
+            total_sub_flows = sum(item.get("sub_flows_count", 0) for item in flow_results if isinstance(item, dict))
+            total_components = sum(item.get("Components", 0) for item in flow_results if isinstance(item, dict))
+        else:
+            total_flows = total_sub_flows = total_components = 0
+    else:
+        total_flows = flow_stats.get("total_flows", 0)
+        total_sub_flows = flow_stats.get("total_sub_flows", 0)
+        total_components = flow_stats.get("total_components", 0)
 
     if total_flows > max_flows:
         threshold_warnings.append(f"Total flows {total_flows} exceed maximum allowed {max_flows}.")
@@ -175,7 +175,6 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     if total_components > max_components:
         threshold_warnings.append(f"Total components {total_components} exceed maximum allowed {max_components}.")
 
-    # Render threshold warnings
     if threshold_warnings:
         warnings_html = "<ul>" + "".join(f"<li><span class='badge warning'>WARNING</span> {msg}</li>" for msg in threshold_warnings) + "</ul>"
         html_content = html_content.replace("{{threshold_warnings}}", warnings_html)
@@ -244,7 +243,6 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     # -------------------------
     # 6. Flow Validation Results
     # -------------------------
-    flow_results = all_results.get('flow_validation')
     if isinstance(flow_results, list) and flow_results and all(isinstance(item, dict) for item in flow_results):
         headers = list(flow_results[0].keys())
         table_data = [[item.get(h, '') for h in headers] for item in flow_results]
@@ -293,12 +291,13 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     # -------------------------
     orphan_results = all_results.get("orphan_checker")
     html_content = html_content.replace('{{orphan_validation_results_table}}',
-                                        _format_data_to_html(orphan_results) if orphan_results else "<p>No orphan issues found.</p>")
+                                        _format_orphan_results(orphan_results) if orphan_results else "<p>No orphan issues found.</p>")
 
     # -------------------------
     # 11. Fallbacks for missing placeholders
     # -------------------------
     placeholders = [
+        'scorecard_table',
         'code_review_issues_table', 'yaml_validation_results_table',
         'dependency_validation_results_table', 'flow_validation_results_table',
         'api_validation_results_table', 'secure_properties_status',
@@ -313,18 +312,15 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     # -------------------------
     branch_name = all_results.get('git_branch_name') or all_results.get('git_branch') or get_current_git_branch()
     html_content = html_content.replace('{{git_branch_name}}', branch_name)
-
-    # Add report start and end time
+    html_content = html_content.replace('{{git_branch}}', all_results.get('git_branch', 'Unknown'))
     html_content = html_content.replace('{{report_start_time}}', all_results.get('report_start_time', 'N/A'))
     html_content = html_content.replace('{{report_end_time}}', all_results.get('report_end_time', 'N/A'))
     html_content = html_content.replace('{{report_duration}}', all_results.get('report_duration', 'N/A'))
 
-    # Summary banner placeholders
     status = all_results.get('status', 'Unknown')
     html_content = html_content.replace('{{ status }}', status)
     html_content = html_content.replace('{{ status|lower }}', status.lower())
     html_content = html_content.replace('{{ project_name }}', all_results.get('project_name', 'Unknown'))
-    html_content = html_content.replace('{{ git_branch }}', all_results.get('git_branch', 'Unknown'))
     html_content = html_content.replace('{{ timestamp }}', all_results.get('timestamp', 'Unknown'))
     html_content = html_content.replace('{{ python_version }}', all_results.get('python_version', 'Unknown'))
 
