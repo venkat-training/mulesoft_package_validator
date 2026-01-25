@@ -579,6 +579,11 @@ class MuleComprehensiveOrphanChecker:
 
         self.logger.info(f"HTML report generated at {output_path}")
 
+    def generate_html_report(self, report, output_path):
+        """
+        Public method to generate HTML report.
+        """
+        self._generate_html_report(report, output_path)
 
 
 def main():

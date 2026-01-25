@@ -1,12 +1,8 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Mule Validation Report</title>
-    <p style="text-align: center;">
-    <strong>Report Generated:</strong> 2026-01-25 16:13:47<br>
-    <strong>Validation Started:</strong> 2026-01-25 16:13:34<br>
-    <strong>Duration:</strong> 0:00:12.873611
-    </p>    
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -14,58 +10,144 @@
             background-color: #f4f4f4;
             color: #333;
         }
+
         h1 {
             color: #333;
             text-align: center;
         }
+
         h2 {
             color: #555;
             border-bottom: 2px solid #ddd;
             padding-bottom: 5px;
             margin-top: 30px;
         }
+
         .section-desc {
             color: #888;
             font-size: 0.98em;
             margin-bottom: 10px;
             margin-top: -18px;
         }
+
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
         }
-        th, td {
+
+        th,
+        td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
         }
+
         th {
             background-color: #e9e9e9;
         }
+
         tr:nth-child(even) {
             background-color: #f9f9f9;
         }
+
         tr:hover {
             background-color: #f1f1f1;
         }
+
         .container {
             background-color: #fff;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
+
         .placeholder {
             color: #aaa;
             font-style: italic;
         }
+
         .warning {
             color: red;
             font-weight: bold;
         }
+
+        .summary-banner.pass {
+            background: #e6fffa;
+        }
+
+        .summary-banner.warn {
+            background: #fffbea;
+        }
+
+        .summary-banner.fail {
+            background: #ffe6e6;
+        }
+
+        .status.pass {
+            color: green;
+        }
+
+        .status.warn {
+            color: orange;
+        }
+
+        .badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .badge.pass {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge.warn {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
     </style>
 </head>
+
 <body>
+    <p style="text-align: center;">
+        <strong>Report Generated:</strong> 2026-01-25 18:02:12<br>
+        <strong>Validation Started:</strong> 2026-01-25 18:02:01<br>
+        <strong>Duration:</strong> 0:00:10.868807
+    </p>
+    <div class="summary-banner warn">
+        <h1>Validation Status: WARN</h1>
+        <p>Project: sbs-ott-restrictions</p>
+        <p>Branch: main</p>
+        <p>Validated on: 2026-01-25 18:02:12</p>
+    </div>
+
+    <h2>Quality Metrics Scorecard</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Metric</th>
+                <th>Value</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>Total Flows</td><td>0</td><td><span class='badge pass'>PASS</span></td></tr><tr><td>Sub-Flows</td><td>0</td><td><span class='badge pass'>PASS</span></td></tr><tr><td>Components</td><td>0</td><td><span class='badge pass'>PASS</span></td></tr><tr><td>Orphan Flows</td><td>1</td><td><span class='badge warn'>WARN</span></td></tr><tr><td>Invalid Names</td><td>4</td><td><span class='badge warn'>WARN</span></td></tr>
+        </tbody>
+    </table>
+
     <div class="container">
         <h1>Mule Validation Report</h1>
         <p style="text-align: center;"><strong>Git Branch:</strong> main</p>
@@ -126,17 +208,19 @@
         <div id="yaml-validation-results">
             <table>
 <thead>
-<tr><th>config-prod.yaml   </th><th>Missing     </th><th>Mandatory file not found  </th></tr>
+<tr><th>0                  </th><th>1           </th><th>2                       </th></tr>
 </thead>
 <tbody>
-<tr><td>config-nonprod.yaml</td><td>Valid Syntax</td><td>                          </td></tr>
+<tr><td>config-prod.yaml   </td><td>Missing     </td><td>Mandatory file not found</td></tr>
+<tr><td>config-nonprod.yaml</td><td>Valid Syntax</td><td>                        </td></tr>
 </tbody>
 </table>
         </div>
 
         <h2>Dependency Validation Results</h2>
         <p class="section-desc">
-            Validates Maven dependencies by checking for missing, unresolved, or duplicate dependencies in all <code>pom.xml</code> files.
+            Validates Maven dependencies by checking for missing, unresolved, or duplicate dependencies in all
+            <code>pom.xml</code> files.
         </p>
         <div id="dependency-validation-results">
             <p>No dependency issues found.</p>
@@ -144,23 +228,26 @@
 
         <h2>Flow Validation Results</h2>
         <p class="section-desc">
-            Analyzes Mule flows and sub-flows for complexity, size, and best practices (e.g., too many flows, sub-flows, or components).
+            Analyzes Mule flows and sub-flows for complexity, size, and best practices (e.g., too many flows, sub-flows,
+            or components).
         </p>
         <div id="flow-validation-results">
-            <table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody><tr><td>total_counts</td><td>{'flows': 5, 'sub_flows': 4, 'components': 20}</td></tr><tr><td>flows_ok</td><td>True</td></tr><tr><td>sub_flows_ok</td><td>True</td></tr><tr><td>components_ok</td><td>True</td></tr><tr><td>flow_names_camel_case_ok</td><td>False</td></tr><tr><td>invalid_flow_names</td><td>['subflow:restrictioncalc_v1', 'subflow:restrictioncalc_v2', 'subflow:restrictioncalc_v3', 'subflow:authentication-subflow']</td></tr><tr><td>max_flows_limit</td><td>120</td></tr><tr><td>max_sub_flows_limit</td><td>60</td></tr><tr><td>max_components_limit</td><td>600</td></tr></tbody></table>
+            <table class="table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody><tr><td>total_counts</td><td>{'flows': 5, 'sub_flows': 4, 'components': 20}</td></tr><tr><td>flows_ok</td><td>True</td></tr><tr><td>sub_flows_ok</td><td>True</td></tr><tr><td>components_ok</td><td>True</td></tr><tr><td>flow_names_camel_case_ok</td><td>False</td></tr><tr><td>invalid_flow_names</td><td>['subflow:restrictioncalc_v1', 'subflow:restrictioncalc_v2', 'subflow:restrictioncalc_v3', 'subflow:authentication-subflow']</td></tr><tr><td>max_flows_limit</td><td>120</td></tr><tr><td>max_sub_flows_limit</td><td>60</td></tr><tr><td>max_components_limit</td><td>600</td></tr></tbody></table>
         </div>
 
         <h2>API Validation Results</h2>
         <p class="section-desc">
-            Validates API specifications and their implementation, ensuring RAML/OAS files are present and APIkit routers/configs are correctly set up.
+            Validates API specifications and their implementation, ensuring RAML/OAS files are present and APIkit
+            routers/configs are correctly set up.
         </p>
         <div id="api-validation-results">
-            <table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody><tr><td>api_spec_dependency</td><td>None</td></tr><tr><td>api_spec_zip_found</td><td>False</td></tr><tr><td>apikit_router_file</td><td>None</td></tr><tr><td>apikit_router_found</td><td>False</td></tr><tr><td>notes</td><td>["No API spec dependency with classifier 'raml' and type 'zip' found in pom.xml.", "Expected APIkit router/config file 'sbs-ott-restrictions.xml' not found in src/main/mule.", "No APIkit router/config found in 'sbs-ott-restrictions.xml' in src/main/mule."]</td></tr></tbody></table>
+            <table class="table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody><tr><td>api_spec_dependency</td><td>None</td></tr><tr><td>api_spec_zip_found</td><td>False</td></tr><tr><td>apikit_router_file</td><td>None</td></tr><tr><td>apikit_router_found</td><td>False</td></tr><tr><td>notes</td><td>["No API spec dependency with classifier 'raml' and type 'zip' found in pom.xml.", "Expected APIkit router/config file 'sbs-ott-restrictions.xml' not found in src/main/mule.", "No APIkit router/config found in 'sbs-ott-restrictions.xml' in src/main/mule."]</td></tr></tbody></table>
         </div>
 
         <h2>Project Uses Mule Secure Properties</h2>
         <p class="section-desc">
-            Checks if the project uses Mule Secure Properties for sensitive configuration values, promoting secure handling of secrets.
+            Checks if the project uses Mule Secure Properties for sensitive configuration values, promoting secure
+            handling of secrets.
         </p>
         <div id="secure-properties-results">
             <p>True</p>
@@ -168,19 +255,11 @@
 
         <h2>Logging Validation Results</h2>
         <p class="section-desc">
-            Reviews logger usage in flows and the Log4j configuration for risky patterns (e.g., too many loggers, DEBUG/TRACE levels in production).
+            Reviews logger usage in flows and the Log4j configuration for risky patterns (e.g., too many loggers,
+            DEBUG/TRACE levels in production).
         </p>
         <div id="logging-validation-results">
-            <h4>Logger Issues</h4><table>
-<thead>
-<tr><th>file               </th><th>flow                  </th><th style="text-align: right;">  logger_count</th><th style="text-align: right;">  debug_count</th><th style="text-align: right;">  error_count</th><th>has_too_many_loggers  </th><th>has_debug  </th><th>error_outside_exception  </th></tr>
-</thead>
-<tbody>
-<tr><td>restrictioncalc.xml</td><td>restrictioncalcFlow   </td><td style="text-align: right;">             4</td><td style="text-align: right;">            0</td><td style="text-align: right;">            1</td><td>False                 </td><td>False      </td><td>True                     </td></tr>
-<tr><td>restrictioncalc.xml</td><td>restrictionUIFlow     </td><td style="text-align: right;">             6</td><td style="text-align: right;">            0</td><td style="text-align: right;">            0</td><td>True                  </td><td>False      </td><td>False                    </td></tr>
-<tr><td>restrictioncalc.xml</td><td>authentication-subflow</td><td style="text-align: right;">             5</td><td style="text-align: right;">            0</td><td style="text-align: right;">            0</td><td>True                  </td><td>False      </td><td>False                    </td></tr>
-</tbody>
-</table>
+            <h4>Logger Issues</h4><ul><li>{'file': 'restrictioncalc.xml', 'flow': 'restrictioncalcFlow', 'logger_count': 4, 'debug_count': 0, 'error_count': 1, 'has_too_many_loggers': False, 'has_debug': False, 'error_outside_exception': True}</li><li>{'file': 'restrictioncalc.xml', 'flow': 'restrictionUIFlow', 'logger_count': 6, 'debug_count': 0, 'error_count': 0, 'has_too_many_loggers': True, 'has_debug': False, 'error_outside_exception': False}</li><li>{'file': 'restrictioncalc.xml', 'flow': 'authentication-subflow', 'logger_count': 5, 'debug_count': 0, 'error_count': 0, 'has_too_many_loggers': True, 'has_debug': False, 'error_outside_exception': False}</li></ul>
         </div>
 
         <h2>Orphan Checker Results</h2>
@@ -188,8 +267,15 @@
             Identifies any orphaned flows, sub-flows, or resources not referenced in the project.
         </p>
         <div id="orphan-validation-results">
-            <table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody><tr><td>summary</td><td>{'total_orphaned_items': 10, 'orphan_flows_count': 1, 'orphan_subflows_count': 2, 'orphan_configs_count': 0, 'orphan_variables_count': 0, 'orphan_env_vars_count': 0, 'orphan_property_keys_count': 7, 'orphan_error_handlers_count': 0, 'orphan_exception_strategies_count': 0, 'orphan_endpoints_count': 0, 'orphan_dw_scripts_count': 0}</td></tr><tr><td>orphans</td><td>{'flows': [('restrictionCodeGeneratorFlow', 'src\\main\\mule\\archiveflow.xml')], 'subflows': [('restrictioncalc_v1', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v2', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml')], 'configs': [], 'variables': [], 'env_vars': [], 'property_keys': ['http.localhost', 'http.port', 'http.private.port', 'https.basepath', 'https.localhost', 'https.port', 'https.saepath'], 'error_handlers': [], 'exception_strategies': [], 'endpoints': [], 'dw_scripts': []}</td></tr><tr><td>used</td><td>{'flows': [('diagnosticFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('restrictionUIFlow', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalcFlow', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalculationNewFlow', 'src\\main\\mule\\restrictioncalc.xml')], 'subflows': [('authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v3', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml')], 'configs': ['HTTPS_Listener_config'], 'variables': [('authHeader', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('encodedCredentials', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('hasAuthHeader', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('httpStatus', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('password', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('username', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('wwwAuth', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('wwwAuthenticate', 'restrictioncalcFlow', 'src\\main\\mule\\restrictioncalc.xml')], 'env_vars': [], 'property_keys': ['api.password', 'api.username', 'https.keystore.file', 'https.keystore.pass', 'https.private.port'], 'error_handlers': [], 'exception_strategies': [], 'endpoints': ['HTTPS_Listener_config'], 'dw_scripts': []}</td></tr><tr><td>declared</td><td>{'flows': ['diagnosticFlow', 'restrictionCodeGeneratorFlow', 'restrictionUIFlow', 'restrictioncalcFlow', 'restrictioncalculationNewFlow'], 'subflows': [('authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v1', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v2', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v3', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml')], 'configs': ['HTTPS_Listener_config'], 'variables': [('authHeader', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('encodedCredentials', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('hasAuthHeader', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('httpStatus', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('password', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('username', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('wwwAuth', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('wwwAuthenticate', 'restrictioncalcFlow', 'src\\main\\mule\\restrictioncalc.xml')], 'env_vars': [], 'property_keys': ['api.password', 'api.username', 'http.localhost', 'http.port', 'http.private.port', 'https.basepath', 'https.keystore.file', 'https.keystore.pass', 'https.localhost', 'https.port', 'https.private.port', 'https.saepath'], 'error_handlers': [], 'exception_strategies': [], 'endpoints': ['HTTPS_Listener_config'], 'dw_scripts': []}</td></tr><tr><td>files_processed</td><td>{'xml_files': ['pom.xml', 'src\\main\\mule\\archiveflow.xml', 'src\\main\\mule\\restrictioncalc.xml', 'src\\main\\resources\\application-types.xml', 'src\\main\\resources\\log4j2.xml', 'src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcf217e4\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcf217e4\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcc1b6a4\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcc1b6a4\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcbbcaff\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcb8ac0a\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcac5abc\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalca12702\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalca12702\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc422082\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc422082\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc3d00fc\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc2ed0d1\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc2ed0d1\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc2e746c\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc17e5e9\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc17e5e9\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc04eb4a\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\pom.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\resources\\application-types.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\resources\\log4j2.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\common\\global-config.xml'], 'dwl_files': [], 'yaml_files': ['src\\main\\resources\\config-nonprod.yaml']}</td></tr><tr><td>validation_errors</td><td>[]</td></tr></tbody></table>
+            <table class="table"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody><tr><td>summary</td><td>{'total_orphaned_items': 10, 'orphan_flows_count': 1, 'orphan_subflows_count': 2, 'orphan_configs_count': 0, 'orphan_variables_count': 0, 'orphan_env_vars_count': 0, 'orphan_property_keys_count': 7, 'orphan_error_handlers_count': 0, 'orphan_exception_strategies_count': 0, 'orphan_endpoints_count': 0, 'orphan_dw_scripts_count': 0}</td></tr><tr><td>orphans</td><td>{'flows': [('restrictionCodeGeneratorFlow', 'src\\main\\mule\\archiveflow.xml')], 'subflows': [('restrictioncalc_v1', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v2', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml')], 'configs': [], 'variables': [], 'env_vars': [], 'property_keys': ['http.localhost', 'http.port', 'http.private.port', 'https.basepath', 'https.localhost', 'https.port', 'https.saepath'], 'error_handlers': [], 'exception_strategies': [], 'endpoints': [], 'dw_scripts': []}</td></tr><tr><td>used</td><td>{'flows': [('diagnosticFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('restrictionUIFlow', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalcFlow', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalculationNewFlow', 'src\\main\\mule\\restrictioncalc.xml')], 'subflows': [('authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v3', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml')], 'configs': ['HTTPS_Listener_config'], 'variables': [('authHeader', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('encodedCredentials', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('hasAuthHeader', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('httpStatus', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('password', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('username', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('wwwAuth', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('wwwAuthenticate', 'restrictioncalcFlow', 'src\\main\\mule\\restrictioncalc.xml')], 'env_vars': [], 'property_keys': ['api.password', 'api.username', 'https.keystore.file', 'https.keystore.pass', 'https.private.port'], 'error_handlers': [], 'exception_strategies': [], 'endpoints': ['HTTPS_Listener_config'], 'dw_scripts': []}</td></tr><tr><td>declared</td><td>{'flows': ['diagnosticFlow', 'restrictionCodeGeneratorFlow', 'restrictionUIFlow', 'restrictioncalcFlow', 'restrictioncalculationNewFlow'], 'subflows': [('authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v1', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v2', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml'), ('restrictioncalc_v3', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml')], 'configs': ['HTTPS_Listener_config'], 'variables': [('authHeader', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('encodedCredentials', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('hasAuthHeader', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('httpStatus', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('password', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('username', 'authentication-subflow', 'src\\main\\mule\\restrictioncalc.xml'), ('wwwAuth', 'restrictionUIFlow', 'src\\main\\mule\\restrictioncalc.xml'), ('wwwAuthenticate', 'restrictioncalcFlow', 'src\\main\\mule\\restrictioncalc.xml')], 'env_vars': [], 'property_keys': ['api.password', 'api.username', 'http.localhost', 'http.port', 'http.private.port', 'https.basepath', 'https.keystore.file', 'https.keystore.pass', 'https.localhost', 'https.port', 'https.private.port', 'https.saepath'], 'error_handlers': [], 'exception_strategies': [], 'endpoints': ['HTTPS_Listener_config'], 'dw_scripts': []}</td></tr><tr><td>files_processed</td><td>{'xml_files': ['pom.xml', 'src\\main\\mule\\archiveflow.xml', 'src\\main\\mule\\restrictioncalc.xml', 'src\\main\\resources\\application-types.xml', 'src\\main\\resources\\log4j2.xml', 'src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcf217e4\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcf217e4\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcc1b6a4\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcc1b6a4\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcbbcaff\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcb8ac0a\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalcac5abc\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalca12702\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalca12702\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc422082\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc422082\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc3d00fc\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc2ed0d1\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc2ed0d1\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc2e746c\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc17e5e9\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc17e5e9\\src\\main\\mule\\common\\global-config.xml', '.tooling-project\\temp\\sbs-ott-restrictioncalc04eb4a\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\pom.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\restrictioncalc.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\resources\\application-types.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\resources\\log4j2.xml', '.tooling-project\\cached\\sbs-ott-restrictioncalc\\src\\main\\mule\\common\\global-config.xml'], 'dwl_files': [], 'yaml_files': ['src\\main\\resources\\config-nonprod.yaml']}</td></tr><tr><td>validation_errors</td><td>[]</td></tr></tbody></table>
         </div>
     </div>
+
+    <footer style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #666; border-top: 1px solid #ddd; padding-top: 10px;">
+        Mule Validator v1.0.0<br>
+        Python 3.14.0<br>
+        Generated at 2026-01-25 18:02:12
+    </footer>
 </body>
+
 </html>

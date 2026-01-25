@@ -66,9 +66,10 @@ def get_current_git_branch(repo_path):
         logger.error(f"An error occurred while getting Git branch for {repo_path}: {e}")
         return "Unknown"
 
-def ensure_maven_and_build(project_dir: str) -> None:
+def ensure_maven_and_build(project_dir: str) -> bool:
     """
     Ensures Maven is available and successfully runs `mvn clean install -DskipTests`.
+    Returns True if successful, False otherwise.
     """
     try:
         # Check Maven version
@@ -77,7 +78,7 @@ def ensure_maven_and_build(project_dir: str) -> None:
         if not mvn_cmd:
             print("ERROR: Maven command 'mvn' not found. Ensure Maven is installed and in PATH.")
             logger.error("Maven command 'mvn' not found during version check.")
-            sys.exit(1)
+            return False
 
         result_mvn_version = subprocess.run(
             [mvn_cmd, "-v"],
@@ -89,15 +90,15 @@ def ensure_maven_and_build(project_dir: str) -> None:
         if result_mvn_version.returncode != 0:
             print("ERROR: Maven not found. Please install Maven and ensure it's in PATH.")
             logger.error(f"Maven version check failed. Output: {result_mvn_version.stdout} Error: {result_mvn_version.stderr}")
-            sys.exit(1)
+            return False
     except FileNotFoundError:
         print("ERROR: Maven command 'mvn' not found. Ensure Maven is installed and in PATH.")
         logger.error("Maven command 'mvn' not found during version check.")
-        sys.exit(1)
+        return False
     except Exception as e:
         print(f"ERROR: Unexpected error checking Maven: {e}")
         logger.error(f"Unexpected error during Maven version check: {e}")
-        sys.exit(1)
+        return False
 
     logger.info(f"Running 'mvn clean install -DskipTests' in directory: {project_dir}")
     try:
@@ -113,16 +114,17 @@ def ensure_maven_and_build(project_dir: str) -> None:
             print("Maven stdout:\n", build_process.stdout)
             print("Maven stderr:\n", build_process.stderr)
             logger.error(f"Maven build failed with return code {build_process.returncode}.")
-            sys.exit(1)
+            return False
         logger.info("Maven build successful.")
+        return True
     except FileNotFoundError:
         print("ERROR: Maven command 'mvn' not found for build. Ensure Maven is installed and in PATH.")
         logger.error("Maven command 'mvn' not found during build execution.")
-        sys.exit(1)
+        return False
     except Exception as e:
         print(f"ERROR: Unexpected error during Maven build: {e}")
         logger.error(f"Unexpected error during Maven build: {e}")
-        sys.exit(1)
+        return False
 
 def evaluate_thresholds(flow_results, dependency_results, thresholds):
     """
@@ -149,6 +151,20 @@ def evaluate_thresholds(flow_results, dependency_results, thresholds):
 
     return warnings
 
+def calculate_status(all_results):
+    if all_results.get("build_failed"):
+        return "FAIL"
+
+    orphan_count = all_results.get("orphan_checker", {}).get("summary", {}).get("orphan_flows_count", 0)
+    if orphan_count > 0:
+        return "WARN"
+
+    if all_results.get("threshold_warnings"):
+        return "WARN"
+
+    return "PASS"
+
+
 def main() -> None:
     """
     CLI entry point for MuleSoft validation.
@@ -165,9 +181,9 @@ def main() -> None:
         description='Validate a MuleSoft package, checking API specs, flows, YAML configs, and more.'
     )
     parser.add_argument('package_folder_path', type=str, help='MuleSoft package folder path.')
-    parser.add_argument('--report-file', type=str, help='Path to save HTML report.')
+    parser.add_argument('--report-file', type=str, help='Path to save the main HTML validation report.')
     parser.add_argument('--orphan-report-file', type=str, help='Path to save separate orphan HTML report.')
-    parser.add_argument('--build-folder-path', type=str, default=None, help='Path to MuleSoft build folder.')
+    parser.add_argument('--fail-on', choices=['WARN', 'ERROR'], help='Fail the validation with exit code based on status severity.')
     threshold_group = parser.add_argument_group('Validation Thresholds')
     threshold_group.add_argument('--max-build-size-mb', type=int, default=100)
     threshold_group.add_argument('--max-flows', type=int, default=100)
@@ -176,10 +192,15 @@ def main() -> None:
 
     args = parser.parse_args()
     package_folder_path = args.package_folder_path
-    build_folder_path = args.build_folder_path if args.build_folder_path else package_folder_path
+    
+
+    all_results = {}
+    success = ensure_maven_and_build(package_folder_path)
+    all_results["build_failed"] = not success
+    if not success:
+        sys.exit(1)
 
     logger.info(f"Starting validation for: {package_folder_path}")
-    ensure_maven_and_build(package_folder_path)
 
     # Step 1: Code Review
     logger.info("Reviewing code and flows...")
@@ -231,7 +252,7 @@ def main() -> None:
     end_time = datetime.datetime.now()
     duration = end_time - start_time
 
-    all_results = {
+    all_results.update({
         "yaml_validation": yaml_results,
         "dependency_validation": dependency_results,
         "flow_validation": flow_results,
@@ -241,11 +262,41 @@ def main() -> None:
         "logging_validation": logging_results,
         "git_branch": git_branch,
         "orphan_checker": orphan_results,
+        "thresholds": thresholds,
         "threshold_warnings": threshold_warnings,
         "report_start_time": start_time.strftime('%Y-%m-%d %H:%M:%S'),
         "report_end_time": end_time.strftime('%Y-%m-%d %H:%M:%S'),
         "report_duration": str(duration)
-    }
+    })
+
+    # Calculate status
+    all_results["status"] = calculate_status(all_results)
+    all_results["project_name"] = os.path.basename(package_folder_path)
+    all_results["timestamp"] = all_results["report_end_time"]
+    all_results["python_version"] = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+
+    # Quality Metrics Scorecard
+    total_flows = flow_results.get("total_flows", 0)
+    total_sub_flows = flow_results.get("total_sub_flows", 0)
+    total_components = flow_results.get("total_components", 0)
+    orphan_flows = orphan_results.get("summary", {}).get("orphan_flows_count", 0)
+    invalid_names = len(flow_results.get("invalid_flow_names", []))
+
+    scorecard = [
+        {"metric": "Total Flows", "value": total_flows, "status": "PASS" if total_flows <= args.max_flows else "WARN"},
+        {"metric": "Sub-Flows", "value": total_sub_flows, "status": "PASS" if total_sub_flows <= args.max_sub_flows else "WARN"},
+        {"metric": "Components", "value": total_components, "status": "PASS" if total_components <= args.max_components else "WARN"},
+        {"metric": "Orphan Flows", "value": orphan_flows, "status": "PASS" if orphan_flows == 0 else "WARN"},
+        {"metric": "Invalid Names", "value": invalid_names, "status": "PASS" if invalid_names == 0 else "WARN"},
+    ]
+    all_results["scorecard"] = scorecard
+
+    # Determine exit code based on fail-on option
+    exit_code = 0
+    if args.fail_on == "WARN" and all_results["status"] in ["WARN", "FAIL"]:
+        exit_code = 1
+    elif args.fail_on == "ERROR" and all_results["status"] == "FAIL":
+        exit_code = 2
 
     # Console summary
     print("\n====== VALIDATION SUMMARY ======")
@@ -277,14 +328,17 @@ def main() -> None:
         print(f"\nHTML report generated at: {args.report_file}")
 
         # Orphan report separately if requested
-        if args.orphan_report_file and hasattr(orphan_checker, "_generate_html_report"):
-            orphan_checker._generate_html_report(orphan_results, args.orphan_report_file)
+        if args.orphan_report_file and hasattr(orphan_checker, "generate_html_report"):
+            orphan_checker.generate_html_report(orphan_results, args.orphan_report_file)
             print(f"Orphan HTML report generated at: {args.orphan_report_file}")
 
     except FileNotFoundError:
         print("Error: HTML template not found. Report not generated.")
     except Exception as e:
         print(f"Error generating HTML report: {e}")
+
+    # Exit with determined code
+    sys.exit(exit_code)
 
 def run(
     package_folder_path: str,
@@ -294,6 +348,7 @@ def run(
     max_flows: int = 100,
     max_sub_flows: int = 50,
     max_components: int = 500,
+    fail_on: str | None = None,
 ):
     """
     Programmatic entry point for automation.
@@ -320,7 +375,10 @@ def run(
         return orphan_checker.run()
 
     # Full validation
-    ensure_maven_and_build(package_folder_path)
+    success = ensure_maven_and_build(package_folder_path)
+    results = {"build_failed": not success}
+    if not success:
+        sys.exit(1)
 
     code_results, project_uses_secure_properties = review_all_files(package_folder_path)
     yaml_results = validate_files(package_folder_path, project_uses_secure_properties)
@@ -333,7 +391,7 @@ def run(
     orphan_results = orphan_checker.run()
     threshold_warnings = evaluate_thresholds(flow_results, dependency_results, thresholds)
 
-    results = {
+    results.update({
         "yaml_validation": yaml_results,
         "dependency_validation": dependency_results,
         "flow_validation": flow_results,
@@ -343,8 +401,22 @@ def run(
         "logging_validation": logging_results,
         "git_branch": git_branch,
         "orphan_checker": orphan_results,
+        "thresholds": thresholds,
         "threshold_warnings": threshold_warnings
-    }
+    })
+
+    # Calculate status and fail fast
+    results["status"] = calculate_status(results)
+    results["project_name"] = os.path.basename(package_folder_path)
+    results["timestamp"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    results["python_version"] = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+
+    # Determine exit code
+    exit_code = 0
+    if fail_on == "WARN" and results["status"] in ["WARN", "FAIL"]:
+        exit_code = 1
+    elif fail_on == "ERROR" and results["status"] == "FAIL":
+        exit_code = 2
 
     if report_file:
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -357,10 +429,11 @@ def run(
             f.write(report_html)
 
     if orphan_report_file:
-        orphan_checker = MuleComprehensiveOrphanChecker(package_folder_path)
-        orphan_results = orphan_checker.run()
-        if hasattr(orphan_checker, "_generate_html_report"):
-            orphan_checker._generate_html_report(orphan_results, orphan_report_file)
+        if hasattr(orphan_checker, "generate_html_report"):
+            orphan_checker.generate_html_report(orphan_results, orphan_report_file)
+
+    if exit_code != 0:
+        sys.exit(exit_code)
 
     return results
 
