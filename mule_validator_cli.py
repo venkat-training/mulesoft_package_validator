@@ -2,14 +2,6 @@
 """
 Mule Validator CLI
 ==================
-
-Usage:
-    python mule_validator_cli.py --project <path_to_mulesoft_project> [--template <template_file>] [--output <output_file>]
-
-This CLI validates a MuleSoft project:
-- Checks API spec dependencies and RAML zips
-- Validates flows, logging, orphaned items
-- Generates a HTML report using a template
 """
 
 import os
@@ -18,6 +10,7 @@ import argparse
 import logging
 from datetime import datetime
 from mule_validator import api_validator, html_reporter
+from mule_validator.html_reporter import generate_orphan_report_page
 
 # -------------------------
 # Logger setup
@@ -32,13 +25,10 @@ logger = logging.getLogger(__name__)
 # Helper Functions
 # -------------------------
 def resolve_path(path: str) -> str:
-    """Return absolute path, expanding user and resolving relative paths."""
     return os.path.abspath(os.path.expanduser(path))
 
 def load_template(template_path: str) -> str:
-    """Load the HTML template file."""
     if not os.path.isfile(template_path):
-        # Try resolving relative to this script's directory
         script_dir = os.path.dirname(os.path.abspath(__file__))
         alt_path = os.path.join(script_dir, template_path)
         if os.path.isfile(alt_path):
@@ -49,11 +39,26 @@ def load_template(template_path: str) -> str:
         return f.read()
 
 def save_report(output_path: str, html_content: str):
-    """Save the HTML report."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_content)
     logger.info(f"Report saved to: {output_path}")
+
+def get_git_branch(project_path: str) -> str:
+    """
+    Determine the current git branch of the project.
+    """
+    git_head_path = os.path.join(project_path, ".git", "HEAD")
+    if os.path.isfile(git_head_path):
+        try:
+            with open(git_head_path, "r") as f:
+                ref_line = f.readline().strip()
+                if ref_line.startswith("ref:"):
+                    return ref_line.split("/")[-1]
+        except Exception as e:
+            logger.warning(f"Unable to read git branch from HEAD: {e}")
+
+    return html_reporter.get_current_git_branch()
 
 # -------------------------
 # Main CLI
@@ -79,46 +84,64 @@ def main():
     logger.info("API spec & flow validation completed")
 
     # -------------------------
-    # 2. Prepare results dictionary for report
+    # 2. Prepare results dictionary
     # -------------------------
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    git_branch = get_git_branch(project_path)
+
     all_results = {
         "project_name": os.path.basename(project_path),
         "status": "PASS" if not api_results["notes"] else "WARN",
-        "git_branch_name": api_results.get("git_branch_name") or "Unknown",
-        "git_branch": api_results.get("git_branch_name") or "Unknown",
+        "git_branch_name": git_branch,
+        "git_branch": git_branch,
         "report_start_time": now,
         "report_end_time": now,
         "report_duration": "N/A",
         "timestamp": now,
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "scorecard": [
-            {"metric": "API Spec Found", "value": "Yes" if api_results["api_spec_zip_found"] else "No", "status": "PASS" if api_results["api_spec_zip_found"] else "FAIL"},
-            {"metric": "APIkit Router Found", "value": api_results["apikit_router_file"] or "N/A", "status": "PASS" if api_results["apikit_router_found"] else "FAIL"},
+            {
+                "metric": "API Spec Found",
+                "value": "Yes" if api_results["api_spec_zip_found"] else "No",
+                "status": "PASS" if api_results["api_spec_zip_found"] else "FAIL"
+            },
+            {
+                "metric": "APIkit Router Found",
+                "value": api_results["apikit_router_file"] or "N/A",
+                "status": "PASS" if api_results["apikit_router_found"] else "FAIL"
+            },
         ],
-        "thresholds": {},
-        "dependency_validation": {},
-        "code_reviewer_issues": [],
-        "yaml_validation": {},
-        "flow_validation": [],
-        "flow_validation_stats": {},
-        "api_validation": [],
-        "project_uses_secure_properties": None,
-        "logging_validation": {},
-        "orphan_checker": {},
+        "orphan_checker": api_results.get("orphan_checker", {}),
         "notes": api_results["notes"],
     }
 
     # -------------------------
-    # 3. Generate HTML report
+    # 3. Generate main HTML report
     # -------------------------
     template_string = load_template(template_path)
     html_report = html_reporter.generate_html_report(all_results, template_string)
 
     # -------------------------
-    # 4. Save report
+    # 4. Save main report
     # -------------------------
     save_report(output_path, html_report)
+
+    # -------------------------
+    # 5. OPTIONAL: Save standalone orphan report (FULL HTML PAGE)
+    # -------------------------
+    orphan_results = all_results.get("orphan_checker",{})
+
+    orphan_html = generate_orphan_report_page(
+            orphan_results,
+            project_name=all_results["project_name"]
+        )
+
+    orphan_report_path = os.path.join(
+            os.path.dirname(output_path),
+            "orphan_report.html"
+        )
+
+    save_report(orphan_report_path, orphan_html)
 
     logger.info("Mule Validator CLI execution completed successfully!")
 

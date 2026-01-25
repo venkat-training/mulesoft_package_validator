@@ -79,3 +79,6 @@ venv.bak/
 .idea/
 *.iml
 *.iws
+
+#Reports
+reports/

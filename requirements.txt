@@ -1,4 +1,4 @@
 lxml
 jinja2
-tabulate
+tabulate>=0.8.9
 PyYAML
