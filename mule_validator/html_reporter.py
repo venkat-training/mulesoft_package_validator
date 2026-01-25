@@ -231,18 +231,22 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
 
     # 8. Orphan Checker Results
     orphan_results = all_results.get("orphan_checker")
-    html_content = html_content.replace('{{orphan_validation_results_table}}', _format_data_to_html(orphan_results))
+    if orphan_results:
+        html_content = html_content.replace('{{orphan_validation_results_table}}', _format_data_to_html(orphan_results))
+    else:
+        html_content = html_content.replace('{{orphan_validation_results_table}}', "<p>No orphan issues found.</p>")
 
     # Fallbacks for any placeholders not explicitly handled
     placeholders = ['code_review_issues_table', 'yaml_validation_results_table',
                     'dependency_validation_results_table', 'flow_validation_results_table',
                     'api_validation_results_table', 'secure_properties_status',
-                    'logging_validation_results_table']
+                    'logging_validation_results_table', 'orphan_validation_results_table']
     for ph in placeholders:
         html_content = html_content.replace(f'{{{{{ph}}}}}', "<p>Data not available.</p>")
 
+
     # Add Git branch name
-    branch_name = all_results.get('git_branch_name', 'Unknown')
+    branch_name = all_results.get('git_branch_name') or all_results.get('git_branch') or 'Unknown'
     html_content = html_content.replace('{{git_branch_name}}', branch_name)
 
     # Add report start and end time
