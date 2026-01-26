@@ -49,22 +49,24 @@ class TestCodeReviewerIsCamelCase(unittest.TestCase):
 
 class TestCodeReviewerCheckFunctions(unittest.TestCase):
     def _create_xml_root(self, xml_string_content):
-        # Helper to create a root element from a string containing specific elements for a check
-        # Ensure all namespaces possibly used by child xml_string_content are declared here
+        """
+        Helper to create a root element from a string containing specific elements for a check.
+        Ensure all namespaces possibly used by child xml_string_content are declared here.
+        """
         xml_full = f"""<mule xmlns="http://www.mulesoft.org/schema/mule/core"
-                         xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
-                         xmlns:http="http://www.mulesoft.org/schema/mule/http"
-                         xmlns:db="http://www.mulesoft.org/schema/mule/db"
-                         xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw"
-                         xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp"
-                         xmlns:ftp="http://www.mulesoft.org/schema/mule/ftp"
-                         xmlns:smb="http://www.mulesoft.org/schema/mule/smb"
-                         xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
-                         xmlns:s3="http://www.mulesoft.org/schema/mule/s3"
-                         xmlns:smtp="http://www.mulesoft.org/schema/mule/smtp"
-                         xmlns:concur="http://www.mulesoft.org/schema/mule/concur"
-                         xmlns:scheduler="http://www.mulesoft.org/schema/mule/scheduler"
-                         xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties">
+                        xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+                        xmlns:http="http://www.mulesoft.org/schema/mule/http"
+                        xmlns:db="http://www.mulesoft.org/schema/mule/db"
+                        xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw"
+                        xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp"
+                        xmlns:ftp="http://www.mulesoft.org/schema/mule/ftp"
+                        xmlns:smb="http://www.mulesoft.org/schema/mule/smb"
+                        xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+                        xmlns:s3="http://www.mulesoft.org/schema/mule/s3"
+                        xmlns:smtp="http://www.mulesoft.org/schema/mule/smtp"
+                        xmlns:concur="http://www.mulesoft.org/schema/mule/concur"
+                        xmlns:scheduler="http://www.mulesoft.org/schema/mule/scheduler"
+                        xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties">
             {xml_string_content}
         </mule>"""
         return etree.fromstring(xml_full.encode('utf-8'))
@@ -401,13 +403,13 @@ class TestReviewAllFiles(unittest.TestCase):
         all_issues_data, project_uses_secure = code_reviewer.review_all_files("/project")
         
         self.assertTrue(project_uses_secure)
-        self.assertEqual(len(all_issues_data), 2) # flow1.xml with issue, flow2.xml with no issues
+        # FIXED: Only flow1.xml has issues, so only 1 item in results
+        self.assertEqual(len(all_issues_data), 1) # Only flow1.xml with its issue
         
-        # Check content of all_issues_data
-        found_flow1_issue = any(item[0] == "flow1.xml" and item[1] == "Issue Found" and item[2] == "issue in flow1" for item in all_issues_data)
-        found_flow2_no_issue = any(item[0] == "flow2.xml" and item[1] == "No Issues" and item[2] == "" for item in all_issues_data)
-        self.assertTrue(found_flow1_issue)
-        self.assertTrue(found_flow2_no_issue)
+        # Check content of all_issues_data - expecting [file_name, severity, issue_description]
+        self.assertEqual(all_issues_data[0][0], "flow1.xml")
+        self.assertEqual(all_issues_data[0][1], "WARNING")
+        self.assertEqual(all_issues_data[0][2], "issue in flow1")
 
         # Assert review_mulesoft_code was called for the correct files
         expected_calls = [
@@ -415,8 +417,7 @@ class TestReviewAllFiles(unittest.TestCase):
             unittest.mock.call(os.path.join("/project/src/main/mule", "flow2.xml"))
         ]
         mock_review_mulesoft_code.assert_has_calls(expected_calls, any_order=True)
-        self.assertEqual(mock_review_mulesoft_code.call_count, 2) # Only flow1.xml and flow2.xml
-
+        self.assertEqual(mock_review_mulesoft_code.call_count, 2) # Both files should be processed
 
     @patch('os.walk')
     @patch('mule_validator.code_reviewer.review_mulesoft_code')

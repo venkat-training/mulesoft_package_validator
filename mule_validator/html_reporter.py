@@ -97,8 +97,29 @@ def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
         for category, items in orphans.items():
             display_category = category.replace('_', ' ').title()
             html += f"<details><summary>{display_category} ({len(items)})</summary><ul>"
-            for item in items:
-                html += f"<li><code class='orphan'>{item}</code></li>"
+            
+            # Handle different item structures
+            if category in ['flows', 'subflows']:
+                # These are tuples: (name, file_path)
+                for item in items:
+                    if isinstance(item, (tuple, list)) and len(item) >= 2:
+                        name, file_path = item[0], item[1]
+                        html += f"<li><code class='orphan'>{name}</code> — <small>{file_path}</small></li>"
+                    else:
+                        html += f"<li><code class='orphan'>{item}</code></li>"
+            elif category == 'variables':
+                # Variables are tuples: (var_name, flow_name, file_path)
+                for item in items:
+                    if isinstance(item, (tuple, list)) and len(item) >= 3:
+                        var_name, flow_name, file_path = item[0], item[1], item[2]
+                        html += f"<li><code class='orphan'>{var_name}</code> — <small>Flow: {flow_name}, File: {file_path}</small></li>"
+                    else:
+                        html += f"<li><code class='orphan'>{item}</code></li>"
+            else:
+                # Simple strings or other items
+                for item in items:
+                    html += f"<li><code class='orphan'>{item}</code></li>"
+            
             html += "</ul></details>"
 
     # --- Used items (if present)
@@ -108,8 +129,29 @@ def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
         for category, items in used_items.items():
             display_category = category.replace('_', ' ').title()
             html += f"<details><summary>{display_category} ({len(items)})</summary><ul>"
-            for item in items:
-                html += f"<li><code class='used'>{item}</code></li>"
+            
+            # Handle different item structures
+            if category in ['flows', 'subflows']:
+                # These are tuples: (name, file_path)
+                for item in items:
+                    if isinstance(item, (tuple, list)) and len(item) >= 2:
+                        name, file_path = item[0], item[1]
+                        html += f"<li><code class='used'>{name}</code> — <small>{file_path}</small></li>"
+                    else:
+                        html += f"<li><code class='used'>{item}</code></li>"
+            elif category == 'variables':
+                # Variables are tuples: (var_name, flow_name, file_path)
+                for item in items:
+                    if isinstance(item, (tuple, list)) and len(item) >= 3:
+                        var_name, flow_name, file_path = item[0], item[1], item[2]
+                        html += f"<li><code class='used'>{var_name}</code> — <small>Flow: {flow_name}, File: {file_path}</small></li>"
+                    else:
+                        html += f"<li><code class='used'>{item}</code></li>"
+            else:
+                # Simple strings or other items
+                for item in items:
+                    html += f"<li><code class='used'>{item}</code></li>"
+            
             html += "</ul></details>"
 
     # --- Declared items (if present)
@@ -119,8 +161,29 @@ def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
         for category, items in declared_items.items():
             display_category = category.replace('_', ' ').title()
             html += f"<details><summary>{display_category} ({len(items)})</summary><ul>"
-            for item in items:
-                html += f"<li><code class='declared'>{item}</code></li>"
+            
+            # Handle different item structures
+            if category == 'subflows':
+                # Subflows are tuples: (name, file_path)
+                for item in items:
+                    if isinstance(item, (tuple, list)) and len(item) >= 2:
+                        name, file_path = item[0], item[1]
+                        html += f"<li><code class='declared'>{name}</code> — <small>{file_path}</small></li>"
+                    else:
+                        html += f"<li><code class='declared'>{item}</code></li>"
+            elif category == 'variables':
+                # Variables are tuples: (var_name, flow_name, file_path)
+                for item in items:
+                    if isinstance(item, (tuple, list)) and len(item) >= 3:
+                        var_name, flow_name, file_path = item[0], item[1], item[2]
+                        html += f"<li><code class='declared'>{var_name}</code> — <small>Flow: {flow_name}, File: {file_path}</small></li>"
+                    else:
+                        html += f"<li><code class='declared'>{item}</code></li>"
+            else:
+                # Simple strings or other items (flows, configs, property_keys, etc.)
+                for item in items:
+                    html += f"<li><code class='declared'>{item}</code></li>"
+            
             html += "</ul></details>"
 
     # --- Validation errors
@@ -224,10 +287,10 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     # -------------------------
     # -- Code review issues
     code_review_issues = all_results.get('code_reviewer_issues')
-    if code_review_issues:
+    if code_review_issues and len(code_review_issues) > 0:
         html_content = html_content.replace(
             "{{code_review_issues_table}}",
-            _format_data_to_html(code_review_issues, headers=["File", "Severity", "Comment"])
+            _format_data_to_html(code_review_issues, headers=["File", "Severity", "Issue"])
         )
     # -- YAML validation
     yaml_validation = all_results.get('yaml_validation')

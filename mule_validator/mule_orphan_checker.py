@@ -1,93 +1,106 @@
 """
-MuleSoft Comprehensive Orphan Checker
+Module: mule_orphan_checker.py
 
-This module provides functionality to identify orphaned (unused) components in MuleSoft applications,
-including flows, subflows, configurations, variables, property keys, and other resources.
+This module provides functionality to scan a MuleSoft project for orphaned flows,
+subflows, configurations, variables, property keys, error handlers, exception strategies,
+endpoints, and DataWeave scripts. It produces JSON, HTML, and Bitbucket Markdown reports.
 
-The checker analyzes XML configuration files, YAML property files, and DataWeave scripts to determine
-which declared components are actually referenced and used within the application.
+Changes:
+- Added module- and function-level docstrings.
+- Replaced print statements with logging calls.
+- Removed duplicate code.
+- Centralized magic strings and regex patterns.
+- Enhanced exception handling and type hints.
+- Added Bitbucket markdown report generation for PR comments.
 """
 
 import os
 import re
 import xml.etree.ElementTree as ET
-from typing import Set, List, Dict, Tuple, Optional
+from typing import Set, List, Dict, Tuple, Any
 from collections import defaultdict
 import yaml
 import logging
 import json
 from pathlib import Path
 
+# Constants for regex patterns and reserved words
+PROPERTY_PATTERNS = [
+    r"p\(['\"]([a-zA-Z0-9_.:-]+)['\"]\)",
+    r"#\[p\(['\"]([a-zA-Z0-9_.:-]+)['\"]\)\]",
+    r"\$\{([a-zA-Z0-9_.:-]+)\}",
+    r"secure::([a-zA-Z0-9_.:-]+)",
+    r"default\s+p\(['\"]([a-zA-Z0-9_.:-]+)['\"]\)",
+    r"Mule::p\(\s*['\"]([a-zA-Z0-9_.:-]+)['\"]\s*\)"
+]
+VARIABLE_PATTERNS = [
+    r"#\[\s*vars\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\]",
+    r"vars\.([a-zA-Z_][a-zA-Z0-9_]*)",
+    r"#\[\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\]",
+    r"attributes\.headers\[['\"]([a-zA-Z0-9_-]+)['\"]\]",
+    r"%X\{([a-zA-Z0-9_.-]+)\}"
+]
+RESERVED_WORDS = {
+    "payload", "message", "attributes", "vars", "now", "null", "true", "false",
+    "error", "logger", "request", "response", "dw", "as", "default", "output",
+    "application", "java", "var", "if", "else", "map", "for", "while", "and", "or", "not"
+}
+CONTEXT_RESERVED = {"output", "application", "java", "as", "var", "default", "dw",
+                    "true", "false", "null"}
+
+
 class MuleComprehensiveOrphanChecker:
     """
-    Comprehensive orphan checker for MuleSoft applications.
-    
-    This class analyzes MuleSoft projects to identify orphaned (unused) components including:
-    - Flows and subflows
-    - Configuration objects
-    - Variables
-    - Property keys from YAML files
-    - Error handlers and exception strategies
-    - HTTP endpoints
-    - DataWeave scripts
-    
-    Args:
-        base_dir: Root directory of the MuleSoft project to analyze
+    A checker class to scan MuleSoft projects for orphaned elements and generate reports.
     """
-    
+
     def __init__(self, base_dir: str) -> None:
-        """Initialize the orphan checker with project directory and data structures."""
+        """
+        Initialize the checker by setting up directories, data structures, and logging.
+        """
         self.base_dir = Path(base_dir)
         self.mule_dir = self.base_dir / "src" / "main" / "mule"
         self.resource_dir = self.base_dir / "src" / "main" / "resources"
 
-        # Flow tracking
-        self.declared_flows: Dict[str, str] = {}  # flow_name -> xml_file
+        self.declared_flows: Dict[str, str] = {}
         self.referenced_flows: Set[str] = set()
         self.declared_subflows: Dict[str, str] = {}
         self.referenced_subflows: Set[str] = set()
 
-        # Configuration tracking
         self.declared_configs: Set[str] = set()
         self.referenced_configs: Set[str] = set()
 
-        # Variable tracking
-        self.declared_variables: Dict[str, Tuple[str, str]] = {}  # var_name -> (flow_name, xml_file)
+        self.declared_variables: Dict[str, Tuple[str, str]] = {}
         self.referenced_variables: Set[str] = set()
 
-        # Environment variable tracking
         self.declared_env_vars: Set[str] = set()
         self.referenced_env_vars: Set[str] = set()
 
-        # Property key tracking
         self.yaml_property_keys: Set[str] = set()
         self.yaml_property_keys_used: Set[str] = set()
 
-        # Error handling tracking
         self.declared_error_handlers: Set[str] = set()
         self.referenced_error_handlers: Set[str] = set()
         self.declared_exception_strategies: Set[str] = set()
         self.referenced_exception_strategies: Set[str] = set()
 
-        # Endpoint tracking
         self.declared_endpoints: Set[str] = set()
         self.referenced_endpoints: Set[str] = set()
 
-        # DataWeave script tracking
         self.declared_dw_scripts: Set[str] = set()
         self.referenced_dw_scripts: Set[str] = set()
 
-        # Processing tracking
         self.xml_files_processed: List[str] = []
         self.dwl_files_processed: List[str] = []
         self.yaml_files_processed: List[str] = []
         self.validation_errors: List[str] = []
-
-        # Compiled regex patterns for performance
         self._compile_regex_patterns()
 
         self.logger = logging.getLogger(__name__)
-        
+        logging.basicConfig(level=logging.INFO,
+                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    
     def _compile_regex_patterns(self) -> None:
         """Compile regex patterns for better performance during text extraction."""
         self.property_patterns = [
@@ -111,15 +124,10 @@ class MuleComprehensiveOrphanChecker:
         self.token_pattern = re.compile(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b")
         self.apikit_pattern = re.compile(r'^(get|post|put|delete|patch|options):')
 
-    def run(self, html_output_path: Optional[str] = None) -> Dict:
+    def run(self, html_output_path: str = None, bitbucket_md_path: str = None) -> Dict[str, Any]:
         """
-        Execute the comprehensive orphan analysis.
-        
-        Args:
-            html_output_path: Optional path to save HTML report
-            
-        Returns:
-            Dictionary containing the complete analysis report
+        Run the complete scanning process and generate a comprehensive report.
+        Optionally produces an HTML report and/or Bitbucket markdown at the specified output paths.
         """
         self.logger.info("Starting MuleSoft validation...")
 
@@ -135,13 +143,24 @@ class MuleComprehensiveOrphanChecker:
             self._generate_html_report(report, html_output_path)
         else:
             self._generate_html_report(report)
+            
+        if bitbucket_md_path:
+            self._generate_bitbucket_markdown(report, bitbucket_md_path)
+            
         return report
 
     def _scan_xml_files(self) -> None:
-        """Scan all XML files in the project for Mule configurations and component declarations."""
+        """
+        Recursively scan and process all Mule XML files, excluding test and target directories.
+        """
         self.logger.info("Scanning all Mule XML files in the project directory recursively...")
-        xml_files = [f for f in self.base_dir.glob("**/*.xml")
-                     if "src/test" not in str(f).replace("\\", "/") and "target" not in str(f).replace("\\", "/")]
+    
+        xml_files = [
+            f for f in self.base_dir.glob("**/*.xml")
+            if not any(exclude in str(f).replace("\\", "/") 
+                    for exclude in ["src/test", "target", ".tooling-project"])
+        ]
+        
         self.logger.info(f"Found {len(xml_files)} XML files to process.")
         for xml_file in xml_files:
             try:
@@ -149,19 +168,21 @@ class MuleComprehensiveOrphanChecker:
                 self.xml_files_processed.append(str(xml_file.relative_to(self.base_dir)))
             except Exception as e:
                 msg = f"Failed to parse {xml_file}: {e}"
-                self.logger.error(msg)
+                self.logger.error(msg, exc_info=True)
                 self.validation_errors.append(msg)
 
     def _parse_mule_xml(self, filepath: Path) -> None:
         """
-        Parse a single Mule XML file to extract component declarations and references.
-        
-        Args:
-            filepath: Path to the XML file to parse
+        Parse a Mule XML file to extract flows, subflows, configurations, variables, endpoints, etc.
         """
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
-            self._extract_references(content)
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+                self._extract_references(content)
+        except Exception as e:
+            msg = f"Error reading file {filepath}: {e}"
+            self.logger.error(msg, exc_info=True)
+            self.validation_errors.append(msg)
 
         tree = ET.parse(filepath)
         root = tree.getroot()
@@ -171,7 +192,7 @@ class MuleComprehensiveOrphanChecker:
             'dw': 'http://www.mulesoft.org/schema/mule/ee/dw'
         }
 
-        # Flows
+        # Process flows
         for flow in root.findall(".//m:flow", ns):
             name = flow.attrib.get("name")
             if name:
@@ -179,15 +200,14 @@ class MuleComprehensiveOrphanChecker:
             for set_var_tag in flow.findall(".//m:set-variable", ns):
                 var_name = set_var_tag.attrib.get("variableName") or set_var_tag.attrib.get("name")
                 if var_name:
-                    self.declared_variables[var_name] = ((name if name is not None else "<unknown flow>"), str(filepath.relative_to(self.base_dir)))
-
-            # If flow contains scheduler or listener tags, consider it referenced (triggered externally)
+                    self.declared_variables[var_name] = (name if name is not None else "<unknown flow>",
+                                                         str(filepath.relative_to(self.base_dir)))
             if name and any(tag.tag.endswith("scheduler") or tag.tag.endswith("scheduling-strategy") for tag in flow.iter()):
                 self.referenced_flows.add(name)
             if name and any("listener" in tag.tag for tag in flow.iter()):
                 self.referenced_flows.add(name)
 
-        # Sub-flows
+        # Process sub-flows
         for subflow in root.findall(".//m:sub-flow", ns):
             name = subflow.attrib.get("name")
             if name:
@@ -209,23 +229,17 @@ class MuleComprehensiveOrphanChecker:
             tag_name = tag.tag.split('}')[-1] if '}' in tag.tag else tag.tag
             if tag_name.lower().endswith("config") or tag_name.lower().endswith("context"):
                 name = tag.attrib.get("name")
-                # Ignore secure properties namespace configs
                 if name and not tag.tag.startswith("{http://www.mulesoft.org/schema/mule/secure-properties}"):
                     self.declared_configs.add(name)
-
             for attr_key, attr_val in tag.attrib.items():
                 if attr_key in {"config-ref", "listener-config-ref", "request-config-ref", "context-ref"}:
                     self.referenced_configs.add(attr_val)
-                    # For listener configs, track endpoints
-                    if (
-                        "listener" in attr_key.lower()
-                        or "listener" in tag.tag.lower()
-                        or tag.tag.endswith("listener")
-                    ):
+                    if ("listener" in attr_key.lower() or 
+                        "listener" in tag.tag.lower() or 
+                        tag.tag.endswith("listener")):
                         self.referenced_endpoints.add(attr_val)
                 else:
                     self._extract_references(attr_val)
-
             if tag.text:
                 self._extract_references(tag.text)
 
@@ -235,7 +249,7 @@ class MuleComprehensiveOrphanChecker:
             if name:
                 self.declared_error_handlers.add(name)
 
-        # Exception strategies (on-error-continue/on-error-propagate)
+        # Exception strategies
         for exc_strategy in root.findall(".//m:on-error-continue", ns) + root.findall(".//m:on-error-propagate", ns):
             ref = exc_strategy.attrib.get("ref")
             if ref:
@@ -258,76 +272,57 @@ class MuleComprehensiveOrphanChecker:
 
     def _extract_references(self, text: str) -> None:
         """
-        Extract references to properties, variables, and other components from text content.
-        
-        Args:
-            text: Text content to analyze for references
+        Extract property keys and variable references from the provided text using regex patterns.
         """
         if not text:
             return
 
-        # Reserved literals to ignore
-        RESERVED_WORDS = {
-            "payload", "message", "attributes", "vars", "now", "null", "true", "false",
-            "error", "logger", "request", "response", "dw", "as", "default", "output",
-            "application", "java", "var", "if", "else", "map", "for", "while", "and", "or", "not"
-        }
-
-        # Use compiled patterns for better performance
         for pattern in self.property_patterns:
-            found_keys = pattern.findall(text)
+            found_keys = re.findall(pattern, text)
+            if pattern == r"Mule::p\(\s*['\"]([a-zA-Z0-9_.:-]+)['\"]\s*\)":
+                logging.debug("Mule::p matches found in text: %s", found_keys)
             self.yaml_property_keys_used.update(k.strip().lower() for k in found_keys)
 
         for pattern in self.variable_patterns:
-            for match in pattern.findall(text):
+            for match in re.findall(pattern, text):
                 if match not in RESERVED_WORDS:
                     self.referenced_variables.add(match)
 
         # DataWeave CDATA blocks extraction
-        dw_blocks = self.dw_block_pattern.findall(text)
+        dw_blocks = re.findall(r"<!\[CDATA\[%dw.*?---(.*?)\]\]>", text, re.DOTALL)
         for dw in dw_blocks:
-            # Extract property references from DataWeave blocks
             for pattern in self.property_patterns:
-                found_keys = pattern.findall(dw)
+                found_keys = re.findall(pattern, dw)
+                if pattern == r"Mule::p\(\s*['\"]([a-zA-Z0-9_.:-]+)['\"]\s*\)":
+                    logging.debug("Mule::p matches found in DWL: %s", found_keys)
                 self.yaml_property_keys_used.update(k.strip().lower() for k in found_keys)
-
-            # Extract variable references from DataWeave blocks
-            tokens = self.token_pattern.findall(dw)
-            context_reserved = {
-                "output", "application", "java", "as", "var", "default", "dw",
-                "true", "false", "null"
-            }
-
+            tokens = re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", dw)
             for token in tokens:
-                if token in RESERVED_WORDS or token in context_reserved:
+                if token in RESERVED_WORDS or token in CONTEXT_RESERVED:
                     continue
-                # Add token only if declared
                 if token in self.declared_variables:
                     self.referenced_variables.add(token)
 
     def _scan_yaml_keys(self) -> None:
-        """Scan YAML configuration files to extract property keys."""
+        """
+        Scan YAML files in the resources directory to extract property keys.
+        """
         self.logger.info("Scanning YAML property files...")
         yaml_files = list(self.resource_dir.glob("*.yml")) + list(self.resource_dir.glob("*.yaml"))
-        self.logger.info(f"Found {len(yaml_files)} YAML files to process.")
         for yml in yaml_files:
             try:
-                with open(yml, 'r', encoding='utf-8') as f:
+                with open(yml, 'r') as f:
                     data = yaml.safe_load(f)
                     self._extract_yaml_keys(data)
                     self.yaml_files_processed.append(str(yml.relative_to(self.base_dir)))
             except yaml.YAMLError as e:
                 msg = f"Failed to parse YAML {yml}: {e}"
-                self.logger.error(msg)
+                self.logger.error(msg, exc_info=True)
                 self.validation_errors.append(msg)
 
-    def _extract_yaml_keys(self, data, prefix: str = '') -> None:
+    def _extract_yaml_keys(self, data: Any, prefix: str = '') -> None:
         """
-        Recursively extract property keys from YAML data structure.
-        
-        Args:
-            data: YAML data structure (dict, list, or primitive)
-            prefix: Current key prefix for nested structures
+        Recursively extract YAML keys and add them to the declared property keys set.
         """
         if isinstance(data, dict):
             for key, value in data.items():
@@ -341,18 +336,27 @@ class MuleComprehensiveOrphanChecker:
                 self._extract_yaml_keys(item, prefix)
 
     def _scan_dwl_files(self) -> None:
-        """Scan DataWeave (.dwl) files for script declarations and references."""
+        """
+        Scan DataWeave (.dwl) files from the Mule directory and additional module directories.
+        """
         self.logger.info("Scanning DataWeave files...")
         dwl_files = list(self.mule_dir.glob("**/*.dwl"))
+        
         # Also scan src/main/resources/modules for DWL files
         modules_dir = self.base_dir / "src" / "main" / "resources" / "modules"
         if modules_dir.exists():
             dwl_files += list(modules_dir.glob("**/*.dwl"))
         
+        # Filter out excluded directories
+        dwl_files = [
+            f for f in dwl_files
+            if not any(exclude in str(f).replace("\\", "/") 
+                    for exclude in ["src/test", "target", ".tooling-project"])
+        ]
+        
         self.logger.info(f"Found {len(dwl_files)} DataWeave files to process.")
         for file in dwl_files:
             try:
-                # Use relative path from base_dir for consistency
                 self.declared_dw_scripts.add(str(file.relative_to(self.base_dir)))
                 with open(file, 'r', encoding='utf-8') as f:
                     text = f.read()
@@ -360,60 +364,104 @@ class MuleComprehensiveOrphanChecker:
                     self.dwl_files_processed.append(str(file.relative_to(self.base_dir)))
             except Exception as e:
                 msg = f"Failed to parse DWL {file}: {e}"
-                self.logger.error(msg)
+                self.logger.error(msg, exc_info=True)
                 self.validation_errors.append(msg)
 
     def _scan_additional_files(self) -> None:
-        """Scan additional file types (HTML, JS) for references to Mule components."""
+        """
+        Scan additional files (HTML and JS) for potential references.
+        """
         text_files = list(self.base_dir.glob("**/*.html")) + list(self.base_dir.glob("**/*.js"))
-        # Filter out test files
-        text_files = [f for f in text_files if "src/test" not in str(f).replace("\\", "/")]
+    
+        # Filter out test files, target, and .tooling-project directories
+        text_files = [
+            f for f in text_files 
+            if not any(exclude in str(f).replace("\\", "/") 
+                    for exclude in ["src/test", "target", ".tooling-project", "node_modules"])
+        ]
         
         self.logger.info(f"Found {len(text_files)} additional files to scan for references.")
         for file in text_files:
             try:
-                with open(file, 'r', encoding='utf-8') as f:
+                # Use utf-8 encoding with error handling
+                with open(file, 'r', encoding='utf-8', errors='ignore') as f:
                     text = f.read()
                     self._extract_references(text)
             except Exception as e:
                 msg = f"Failed to parse {file}: {e}"
-                self.logger.error(msg)
+                self.logger.error(msg, exc_info=True)
                 self.validation_errors.append(msg)
 
     def _find_orphans(self, declared: Set[str], referenced: Set[str]) -> Tuple[List[str], List[str]]:
         """
-        Compare declared and referenced components to identify orphans and used items.
-        
-        Args:
-            declared: Set of declared component names
-            referenced: Set of referenced component names
-            
-        Returns:
-            Tuple of (orphaned_items, used_items) as sorted lists
+        Identify orphaned and used items by comparing declared and referenced sets.
         """
         used = sorted(list(declared & referenced))
         orphan = sorted(list(declared - referenced))
         return orphan, used
 
-    def _generate_comprehensive_report(self) -> Dict:
+    def _generate_comprehensive_report(self) -> Dict[str, Any]:
         """
-        Generate a comprehensive report of all orphaned and used components.
+        Generate a comprehensive report in JSON format with summaries of orphans, used, and declared items.
+        """
+        # ADD EXTENSIVE DEBUG LOGGING
+        self.logger.info("="*80)
+        self.logger.info("STARTING REPORT GENERATION - DEBUG INFO")
+        self.logger.info("="*80)
         
-        Returns:
-            Dictionary containing detailed analysis results
-        """
-        self.logger.debug(f"Declared property keys: {len(self.yaml_property_keys)}")
-        self.logger.debug(f"Used property keys: {len(self.yaml_property_keys_used)}")
+        self.logger.info(f"Declared flows: {len(self.declared_flows)}")
+        self.logger.info(f"Declared flows list: {list(self.declared_flows.keys())}")
+        self.logger.info(f"Referenced flows: {len(self.referenced_flows)}")
+        self.logger.info(f"Referenced flows list: {list(self.referenced_flows)}")
+        
+        self.logger.info(f"Declared subflows: {len(self.declared_subflows)}")
+        self.logger.info(f"Declared subflows list: {list(self.declared_subflows.keys())}")
+        self.logger.info(f"Referenced subflows: {len(self.referenced_subflows)}")
+        self.logger.info(f"Referenced subflows list: {list(self.referenced_subflows)}")
+        
+        self.logger.info(f"Declared configs: {len(self.declared_configs)}")
+        self.logger.info(f"Declared configs list: {list(self.declared_configs)}")
+        self.logger.info(f"Referenced configs: {len(self.referenced_configs)}")
+        self.logger.info(f"Referenced configs list: {list(self.referenced_configs)}")
+        
+        self.logger.info(f"Declared property keys: {len(self.yaml_property_keys)}")
+        self.logger.info(f"Used property keys: {len(self.yaml_property_keys_used)}")
+        
+        self.logger.info(f"Declared variables: {len(self.declared_variables)}")
+        self.logger.info(f"Referenced variables: {len(self.referenced_variables)}")
+        
+        # Calculate APIKit flows
+        apikit_flows = self._apikit_derived_flows()
+        self.logger.info(f"APIKit derived flows: {len(apikit_flows)}")
+        self.logger.info(f"APIKit flows list: {list(apikit_flows)}")
         
         orphan_flows_list, used_flows = self._find_orphans(
             set(self.declared_flows.keys()), 
-            self.referenced_flows | self._apikit_derived_flows()
+            self.referenced_flows | apikit_flows
         )
-        orphan_subflows_list, used_subflows = self._find_orphans(set(self.declared_subflows.keys()), self.referenced_subflows)
+        
+        self.logger.info(f"ORPHAN FLOWS FOUND: {len(orphan_flows_list)}")
+        self.logger.info(f"Orphan flows list: {orphan_flows_list}")
+        
+        orphan_subflows_list, used_subflows = self._find_orphans(
+            set(self.declared_subflows.keys()), self.referenced_subflows
+        )
+        
+        self.logger.info(f"ORPHAN SUBFLOWS FOUND: {len(orphan_subflows_list)}")
+        self.logger.info(f"Orphan subflows list: {orphan_subflows_list}")
+        
         orphan_configs, used_configs = self._find_orphans(self.declared_configs, self.referenced_configs)
+        
+        self.logger.info(f"ORPHAN CONFIGS FOUND: {len(orphan_configs)}")
+        self.logger.info(f"Orphan configs list: {orphan_configs}")
+        
         orphan_vars_list, used_vars = self._find_orphans(set(self.declared_variables.keys()), self.referenced_variables)
         orphan_env_vars, used_env_vars = self._find_orphans(self.declared_env_vars, self.referenced_env_vars)
         orphan_props, used_props = self._find_orphans(self.yaml_property_keys, self.yaml_property_keys_used)
+        
+        self.logger.info(f"ORPHAN PROPERTY KEYS FOUND: {len(orphan_props)}")
+        self.logger.info(f"Orphan props list (first 10): {list(orphan_props)[:10]}")
+        
         orphan_error_handlers, used_error_handlers = self._find_orphans(self.declared_error_handlers, self.referenced_error_handlers)
         orphan_exc_strategies, used_exc_strategies = self._find_orphans(self.declared_exception_strategies, self.referenced_exception_strategies)
         orphan_endpoints, used_endpoints = self._find_orphans(self.declared_endpoints, self.referenced_endpoints)
@@ -421,19 +469,30 @@ class MuleComprehensiveOrphanChecker:
 
         orphan_flows = [(flow, self.declared_flows[flow]) for flow in orphan_flows_list]
         used_flows_detailed = [(flow, self.declared_flows.get(flow, "Unknown file")) for flow in used_flows]
-
         orphan_subflows = [(name, self.declared_subflows[name]) for name in orphan_subflows_list]
         used_subflows_detailed = [(subflow, self.declared_subflows.get(subflow, "Unknown file")) for subflow in used_subflows]
-
         orphan_vars = [(var, flow, file) for var, (flow, file) in self.declared_variables.items() if var in orphan_vars_list]
         used_vars_detailed = [(var, self.declared_variables[var][0], self.declared_variables[var][1]) for var in used_vars]
 
+        total_orphans = (
+            len(orphan_flows) + 
+            len(orphan_subflows) + 
+            len(orphan_configs) + 
+            len(orphan_vars) +
+            len(orphan_env_vars) + 
+            len(orphan_props) + 
+            len(orphan_error_handlers) + 
+            len(orphan_exc_strategies) +
+            len(orphan_endpoints) + 
+            len(orphan_dw_scripts)
+        )
+        
+        self.logger.info("="*80)
+        self.logger.info(f"TOTAL ORPHANED ITEMS: {total_orphans}")
+        self.logger.info("="*80)
 
         summary = {
-            "total_orphaned_items": len(
-                orphan_flows + orphan_subflows + orphan_configs + orphan_vars +
-                orphan_env_vars + orphan_props + orphan_error_handlers + orphan_exc_strategies + orphan_endpoints + orphan_dw_scripts
-            ),
+            "total_orphaned_items": total_orphans,
             "orphan_flows_count": len(orphan_flows),
             "orphan_subflows_count": len(orphan_subflows),
             "orphan_configs_count": len(orphan_configs),
@@ -451,26 +510,26 @@ class MuleComprehensiveOrphanChecker:
             "orphans": {
                 "flows": orphan_flows,
                 "subflows": orphan_subflows,
-                "configs": orphan_configs,
+                "configs": list(orphan_configs),
                 "variables": orphan_vars,
-                "env_vars": orphan_env_vars,
-                "property_keys": orphan_props,
-                "error_handlers": orphan_error_handlers,
-                "exception_strategies": orphan_exc_strategies,
-                "endpoints": orphan_endpoints,
-                "dw_scripts": orphan_dw_scripts
+                "env_vars": list(orphan_env_vars),
+                "property_keys": list(orphan_props),
+                "error_handlers": list(orphan_error_handlers),
+                "exception_strategies": list(orphan_exc_strategies),
+                "endpoints": list(orphan_endpoints),
+                "dw_scripts": list(orphan_dw_scripts)
             },
             "used": {
                 "flows": used_flows_detailed,
                 "subflows": used_subflows_detailed,
-                "configs": used_configs,
+                "configs": list(used_configs),
                 "variables": used_vars_detailed,
-                "env_vars": used_env_vars,
-                "property_keys": used_props,
-                "error_handlers": used_error_handlers,
-                "exception_strategies": used_exc_strategies,
-                "endpoints": used_endpoints,
-                "dw_scripts": used_dw_scripts
+                "env_vars": list(used_env_vars),
+                "property_keys": list(used_props),
+                "error_handlers": list(used_error_handlers),
+                "exception_strategies": list(used_exc_strategies),
+                "endpoints": list(used_endpoints),
+                "dw_scripts": list(used_dw_scripts)
             },
             "declared": {
                 "flows": sorted(list(self.declared_flows.keys())),
@@ -492,24 +551,122 @@ class MuleComprehensiveOrphanChecker:
             "validation_errors": self.validation_errors
         }
 
+        # SAVE REPORT TO JSON FILE FOR DEBUGGING
+        try:
+            with open('orphan_report_debug.json', 'w', encoding='utf-8') as f:
+                json.dump(report, f, indent=2)
+            self.logger.info("Debug JSON report saved to: orphan_report_debug.json")
+        except Exception as e:
+            self.logger.error(f"Failed to save debug JSON: {e}")
+
         return report
 
     def _apikit_derived_flows(self) -> Set[str]:
         """
-        Identify APIKit-derived flows based on HTTP verb naming convention.
-        
-        Returns:
-            Set of flow names that follow APIKit naming patterns
+        Derive flows from APIkit naming conventions.
         """
+        #return {name for name in self.declared_flows if re.match(r'^(get|post|put|delete|patch|options):', name)}
         return {name for name in self.declared_flows if self.apikit_pattern.match(name)}
 
-    def _generate_html_report(self, report: Dict, output_path: str = "orphan_report.html") -> None:
+    def _generate_bitbucket_markdown(self, report: Dict[str, Any], output_path: str = "bitbucket-comment.md") -> None:
         """
-        Generate an HTML report from the analysis results.
+        Generate a Bitbucket-formatted markdown summary for PR comments.
+        """
+        md = []
+        summary = report["summary"]
+        orphan_count = summary["total_orphaned_items"]
         
-        Args:
-            report: Dictionary containing analysis results
-            output_path: Path where the HTML report should be saved
+        # Header with status
+        if orphan_count == 0:
+            status_icon = "✅"
+            status = "PASSED"
+            status_color = "🟢"
+            message = "All MuleSoft components are properly referenced and in use. No cleanup required!"
+        else:
+            status_icon = "⚠️"
+            status = "REVIEW NEEDED"
+            status_color = "🟡"
+            message = f"Found {orphan_count} orphaned item(s) that may need attention."
+        
+        md.append("## 🔍 MuleSoft Orphan Checker Report\n")
+        md.append(f"{status_color} **Status:** {status} {status_icon}\n")
+        md.append(f"\n### 📊 Summary\n")
+        md.append(f"\n**Total Orphaned Items:** `{orphan_count}`\n")
+        
+        # Build comparison table
+        md.append("\n| Component Type | Orphaned | In Use |")
+        md.append("\n|----------------|----------|--------|")
+        md.append(f"\n| Flows | {summary['orphan_flows_count']} | {len(report['used']['flows'])} |")
+        md.append(f"\n| Subflows | {summary['orphan_subflows_count']} | {len(report['used']['subflows'])} |")
+        md.append(f"\n| Configurations | {summary['orphan_configs_count']} | {len(report['used']['configs'])} |")
+        md.append(f"\n| Variables | {summary['orphan_variables_count']} | {len(report['used']['variables'])} |")
+        md.append(f"\n| Environment Variables | {summary['orphan_env_vars_count']} | {len(report['used']['env_vars'])} |")
+        md.append(f"\n| Property Keys | {summary['orphan_property_keys_count']} | {len(report['used']['property_keys'])} |")
+        md.append(f"\n| Error Handlers | {summary['orphan_error_handlers_count']} | {len(report['used']['error_handlers'])} |")
+        md.append(f"\n| DataWeave Scripts | {summary['orphan_dw_scripts_count']} | {len(report['used']['dw_scripts'])} |")
+        md.append(f"\n| Endpoints | {summary['orphan_endpoints_count']} | {len(report['used']['endpoints'])} |")
+        
+        # Add orphan details if any exist
+        if orphan_count > 0:
+            md.append("\n\n### ⚠️ Orphaned Items Details\n")
+            
+            if summary['orphan_flows_count'] > 0:
+                md.append(f"\n**Flows ({summary['orphan_flows_count']}):**")
+                for flow, file_path in report['orphans']['flows'][:5]:
+                    md.append(f"\n- `{flow}` in `{file_path}`")
+                if summary['orphan_flows_count'] > 5:
+                    md.append(f"\n- _(and {summary['orphan_flows_count'] - 5} more)_")
+            
+            if summary['orphan_configs_count'] > 0:
+                md.append(f"\n\n**Configurations ({summary['orphan_configs_count']}):**")
+                for config in list(report['orphans']['configs'])[:5]:
+                    md.append(f"\n- `{config}`")
+                if summary['orphan_configs_count'] > 5:
+                    md.append(f"\n- _(and {summary['orphan_configs_count'] - 5} more)_")
+            
+            if summary['orphan_variables_count'] > 0:
+                md.append(f"\n\n**Variables ({summary['orphan_variables_count']}):**")
+                for var, flow, file_path in report['orphans']['variables'][:5]:
+                    md.append(f"\n- `{var}` in flow `{flow}`")
+                if summary['orphan_variables_count'] > 5:
+                    md.append(f"\n- _(and {summary['orphan_variables_count'] - 5} more)_")
+            
+            if summary['orphan_property_keys_count'] > 0:
+                md.append(f"\n\n**Property Keys ({summary['orphan_property_keys_count']}):**")
+                for prop in list(report['orphans']['property_keys'])[:5]:
+                    md.append(f"\n- `{prop}`")
+                if summary['orphan_property_keys_count'] > 5:
+                    md.append(f"\n- _(and {summary['orphan_property_keys_count'] - 5} more)_")
+        
+        # Files analyzed
+        md.append(f"\n\n### 📦 Files Analyzed")
+        md.append(f"\n- **XML Files:** {len(report['files_processed']['xml_files'])}")
+        md.append(f"\n- **DataWeave Files:** {len(report['files_processed']['dwl_files'])}")
+        md.append(f"\n- **YAML Files:** {len(report['files_processed']['yaml_files'])}")
+        
+        md.append(f"\n\n{message}")
+        
+        # Validation errors if any
+        if report['validation_errors']:
+            md.append(f"\n\n### ⚠️ Validation Warnings ({len(report['validation_errors'])})")
+            for err in report['validation_errors'][:3]:
+                md.append(f"\n- {err}")
+            if len(report['validation_errors']) > 3:
+                md.append(f"\n- _(and {len(report['validation_errors']) - 3} more)_")
+        
+        md.append("\n\n---")
+        md.append("\n\n📄 **Download full HTML report from Pipeline Artifacts** • Generated by MuleSoft Orphan Checker")
+        
+        try:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(''.join(md))
+            self.logger.info(f"Bitbucket markdown report generated at {output_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to write Bitbucket markdown report at {output_path}: {e}", exc_info=True)
+
+    def _generate_html_report(self, report: Dict[str, Any], output_path: str = "orphan_report.html") -> None:
+        """
+        Generate an HTML report from the given JSON report.
         """
         html = ['<html><head><meta charset="UTF-8"><title>MuleSoft Orphan Report</title>']
         html.append("""
@@ -525,25 +682,22 @@ class MuleComprehensiveOrphanChecker:
         </style>
         </head><body>
         """)
-
         html.append('<h1>MuleSoft Orphan Report</h1>')
         html.append('<h2>Summary</h2><ul>')
         for k, v in report["summary"].items():
             html.append(f"<li><b>{k}:</b> {v}</li>")
         html.append("</ul>")
 
-        def build_section(title, data: Dict[str, List], css_class: str):
+        def build_section(title: str, data: Dict[str, List[Any]], css_class: str) -> None:
             html.append(f"<h2>{title}</h2>")
             for section, items in data.items():
                 html.append(f"<details><summary>{section} ({len(items)})</summary><ul>")
                 for item in items:
                     if section in {"flows", "subflows"}:
                         if isinstance(item, tuple):
-                            # item like (name, file_path)
                             name, file_path = item
                             html.append(f"<li><code class='{css_class}'>{name}</code> — <small>{file_path}</small></li>")
                         else:
-                            # item is just string (for declared flows)
                             html.append(f"<li><code class='{css_class}'>{item}</code></li>")
                     elif section == "variables":
                         var_name, flow_name, file_path = item
@@ -571,30 +725,27 @@ class MuleComprehensiveOrphanChecker:
                 html.append(f"<li>{err}</li>")
             html.append("</ul>")
 
-        html.append("</body>")
-        html.append("</html>")
+        html.append("</body></html>")
 
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(html))
+        try:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(html))
+            self.logger.info(f"HTML report generated at {output_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to write HTML report at {output_path}: {e}", exc_info=True)
 
-        self.logger.info(f"HTML report generated at {output_path}")
-
-    def generate_html_report(self, report, output_path):
-        """
-        Public method to generate HTML report.
-        """
-        self._generate_html_report(report, output_path)
-
-
-def main():
+def main() -> None:
+    """
+    Parse command line arguments and execute the MuleSoft orphan checker.
+    """
     import argparse
     parser = argparse.ArgumentParser(description="MuleSoft Orphan Checker")
     parser.add_argument("project_dir", help="Path to MuleSoft project root")
     parser.add_argument("--html", help="Optional: Path to output HTML report", required=False)
+    parser.add_argument("--bitbucket-md", help="Optional: Path to output Bitbucket markdown comment", required=False)
     args = parser.parse_args()
     checker = MuleComprehensiveOrphanChecker(args.project_dir)
-    checker.run(html_output_path=args.html)
+    checker.run(html_output_path=args.html, bitbucket_md_path=args.bitbucket_md)
 
 if __name__ == "__main__":
     main()
-

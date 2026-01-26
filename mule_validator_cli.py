@@ -9,8 +9,17 @@ import sys
 import argparse
 import logging
 from datetime import datetime
-from mule_validator import api_validator, html_reporter
+from mule_validator import (
+    api_validator, 
+    html_reporter,
+    code_reviewer,
+    configfile_validator,
+    dependency_validator,
+    flow_validator,
+    logs_reviewer
+)
 from mule_validator.html_reporter import generate_orphan_report_page
+from mule_validator.mule_orphan_checker import MuleComprehensiveOrphanChecker
 
 # -------------------------
 # Logger setup
@@ -60,6 +69,67 @@ def get_git_branch(project_path: str) -> str:
 
     return html_reporter.get_current_git_branch()
 
+def calculate_status(all_results):
+    """Calculate overall validation status"""
+    orphan_count = all_results.get("orphan_checker", {}).get("summary", {}).get("total_orphaned_items", 0)
+    if orphan_count > 0:
+        return "WARN"
+    
+    if all_results.get("threshold_warnings"):
+        return "WARN"
+    
+    # Check for any validation errors
+    if all_results.get("code_reviewer_issues"):
+        return "WARN"
+    
+    return "PASS"
+
+def normalize_code_review_results(results):
+    seen = set()
+    files_with_issues = set()
+    normalized = []
+
+    for item in results:
+        if not isinstance(item, dict):
+            continue  # hard guard
+
+        file_name = item.get("file")
+        severity = item.get("severity", "")
+        comment = item.get("comment", "")
+
+        if severity != "No Issues":
+            key = (file_name, severity, comment)
+            if key not in seen:
+                seen.add(key)
+                files_with_issues.add(file_name)
+                normalized.append(item)
+
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+
+        if item.get("severity") == "No Issues":
+            file_name = item.get("file")
+            if file_name not in files_with_issues:
+                normalized.append(item)
+                files_with_issues.add(file_name)
+
+    return normalized
+
+def flatten_code_review_results(results):
+    """
+    Flattens nested lists returned by code reviewer into a single list of dicts.
+    """
+    flattened = []
+
+    for item in results:
+        if isinstance(item, list):
+            flattened.extend(item)
+        elif isinstance(item, dict):
+            flattened.append(item)
+
+    return flattened
+
 # -------------------------
 # Main CLI
 # -------------------------
@@ -68,6 +138,10 @@ def main():
     parser.add_argument("--project", required=True, help="Path to MuleSoft project")
     parser.add_argument("--template", default="report_template.html", help="Path to HTML report template")
     parser.add_argument("--output", default="reports/mule_validator_report.html", help="Path to output HTML report")
+    parser.add_argument("--max-flows", type=int, default=100, help="Maximum allowed flows")
+    parser.add_argument("--max-sub-flows", type=int, default=50, help="Maximum allowed sub-flows")
+    parser.add_argument("--max-components", type=int, default=500, help="Maximum allowed components")
+    parser.add_argument("--max-build-size-mb", type=int, default=100, help="Maximum build size in MB")
     args = parser.parse_args()
 
     project_path = resolve_path(args.project)
@@ -77,73 +151,207 @@ def main():
     logger.info(f"Validating project at: {project_path}")
     logger.info(f"Using HTML template: {template_path}")
 
-    # -------------------------
-    # 1. Validate API spec & flows
-    # -------------------------
-    api_results = api_validator.validate_api_spec_and_flows(project_path)
-    logger.info("API spec & flow validation completed")
+    start_time = datetime.now()
 
     # -------------------------
-    # 2. Prepare results dictionary
+    # 1. Code Review
     # -------------------------
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info("Reviewing code and flows...")
+    try:
+        raw_code_reviewer_results, project_uses_secure_properties = code_reviewer.review_all_files(project_path)
+        flat_results = flatten_code_review_results(raw_code_reviewer_results)
+        code_reviewer_results = normalize_code_review_results(raw_code_reviewer_results)
+    except Exception as e:
+        logger.error(f"Code review failed: {e}")
+        code_reviewer_results = []
+        project_uses_secure_properties = False
+
+    # -------------------------
+    # 2. YAML Validation
+    # -------------------------
+    logger.info("Validating YAML configurations...")
+    try:
+        yaml_results = configfile_validator.validate_files(project_path, project_uses_secure_properties)
+    except Exception as e:
+        logger.error(f"YAML validation failed: {e}")
+        yaml_results = []
+
+    # -------------------------
+    # 3. Dependency Validation
+    # -------------------------
+    logger.info("Validating dependencies and build size...")
+    try:
+        dependency_results = dependency_validator.validate_all_projects(project_path)
+    except Exception as e:
+        logger.error(f"Dependency validation failed: {e}")
+        dependency_results = {}
+
+    # -------------------------
+    # 4. Flow Validation
+    # -------------------------
+    logger.info("Validating flows and components...")
+    try:
+        flow_results = flow_validator.validate_flows_in_package(
+            project_path,
+            max_flows=args.max_flows,
+            max_sub_flows=args.max_sub_flows,
+            max_components=args.max_components
+        )
+    except Exception as e:
+        logger.error(f"Flow validation failed: {e}")
+        flow_results = {}
+
+    # -------------------------
+    # 5. API Validation
+    # -------------------------
+    logger.info("Validating API specifications...")
+    try:
+        api_results = api_validator.validate_api_spec_and_flows(project_path)
+    except Exception as e:
+        logger.error(f"API validation failed: {e}")
+        api_results = {}
+
+    # -------------------------
+    # 6. Logging Validation
+    # -------------------------
+    logger.info("Validating logging practices...")
+    try:
+        logging_results = logs_reviewer.validate_logging(project_path)
+    except Exception as e:
+        logger.error(f"Logging validation failed: {e}")
+        logging_results = {}
+
+    # -------------------------
+    # 7. Orphan Checker
+    # -------------------------
+    logger.info("Starting orphan check analysis...")
+    try:
+        orphan_checker = MuleComprehensiveOrphanChecker(project_path)
+        
+        reports_dir = os.path.dirname(output_path)
+        orphan_html_path = os.path.join(reports_dir, "orphan_report.html")
+        orphan_md_path = os.path.join(reports_dir, "bitbucket_orphan_comment.md")
+        
+        orphan_report = orphan_checker.run(
+            html_output_path=orphan_html_path,
+            bitbucket_md_path=orphan_md_path
+        )
+        
+        logger.info(f"Orphan check completed: {orphan_report['summary']['total_orphaned_items']} orphaned items found")
+        
+    except Exception as e:
+        logger.error(f"Orphan check failed: {e}", exc_info=True)
+        orphan_report = {
+            "summary": {"total_orphaned_items": 0},
+            "orphans": {},
+            "used": {},
+            "declared": {},
+            "files_processed": {},
+            "validation_errors": [str(e)]
+        }
+
+    # -------------------------
+    # 8. Evaluate Thresholds
+    # -------------------------
+    threshold_warnings = []
+    
+    # Flow thresholds
+    total_flows = flow_results.get("total_flows", 0)
+    total_sub_flows = flow_results.get("total_sub_flows", 0)
+    total_components = flow_results.get("total_components", 0)
+    
+    if total_flows > args.max_flows:
+        threshold_warnings.append(f"{total_flows} flows exceed max allowed {args.max_flows}")
+    if total_sub_flows > args.max_sub_flows:
+        threshold_warnings.append(f"{total_sub_flows} sub-flows exceed max allowed {args.max_sub_flows}")
+    if total_components > args.max_components:
+        threshold_warnings.append(f"{total_components} components exceed max allowed {args.max_components}")
+    
+    # Build size threshold
+    build_size_mb = dependency_results.get("build_size_mb", 0)
+    if build_size_mb > args.max_build_size_mb:
+        threshold_warnings.append(f"Build size {build_size_mb}MB exceeds max allowed {args.max_build_size_mb}MB")
+
+    # -------------------------
+    # 9. Prepare results dictionary
+    # -------------------------
+    end_time = datetime.now()
+    duration = end_time - start_time
     git_branch = get_git_branch(project_path)
 
     all_results = {
         "project_name": os.path.basename(project_path),
-        "status": "PASS" if not api_results["notes"] else "WARN",
         "git_branch_name": git_branch,
         "git_branch": git_branch,
-        "report_start_time": now,
-        "report_end_time": now,
-        "report_duration": "N/A",
-        "timestamp": now,
+        "report_start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "report_end_time": end_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "report_duration": str(duration),
+        "timestamp": end_time.strftime("%Y-%m-%d %H:%M:%S"),
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-        "scorecard": [
-            {
-                "metric": "API Spec Found",
-                "value": "Yes" if api_results["api_spec_zip_found"] else "No",
-                "status": "PASS" if api_results["api_spec_zip_found"] else "FAIL"
-            },
-            {
-                "metric": "APIkit Router Found",
-                "value": api_results["apikit_router_file"] or "N/A",
-                "status": "PASS" if api_results["apikit_router_found"] else "FAIL"
-            },
-        ],
-        "orphan_checker": api_results.get("orphan_checker", {}),
-        "notes": api_results["notes"],
+        
+        # Validation results
+        "code_reviewer_issues": code_reviewer_results,
+        "yaml_validation": yaml_results,
+        "dependency_validation": dependency_results,
+        "flow_validation": flow_results,
+        "api_validation": api_results,
+        "logging_validation": logging_results,
+        "orphan_checker": orphan_report,
+        "project_uses_secure_properties": project_uses_secure_properties,
+        "threshold_warnings": threshold_warnings,
     }
 
+    # Calculate status
+    all_results["status"] = calculate_status(all_results)
+
+    # Quality Metrics Scorecard
+    orphan_flows = orphan_report.get("summary", {}).get("orphan_flows_count", 0)
+    invalid_names = len(flow_results.get("invalid_flow_names", []))
+
+    scorecard = [
+        {"metric": "API Spec Found", "value": "Yes" if api_results.get("api_spec_zip_found") else "No", 
+         "status": "PASS" if api_results.get("api_spec_zip_found") else "FAIL"},
+        {"metric": "Total Flows", "value": total_flows, 
+         "status": "PASS" if total_flows <= args.max_flows else "WARN"},
+        {"metric": "Sub-Flows", "value": total_sub_flows, 
+         "status": "PASS" if total_sub_flows <= args.max_sub_flows else "WARN"},
+        {"metric": "Components", "value": total_components, 
+         "status": "PASS" if total_components <= args.max_components else "WARN"},
+        {"metric": "Orphan Flows", "value": orphan_flows, 
+         "status": "PASS" if orphan_flows == 0 else "WARN"},
+        {"metric": "Invalid Names", "value": invalid_names, 
+         "status": "PASS" if invalid_names == 0 else "WARN"},
+    ]
+    all_results["scorecard"] = scorecard
+
     # -------------------------
-    # 3. Generate main HTML report
+    # 10. Generate main HTML report
     # -------------------------
     template_string = load_template(template_path)
     html_report = html_reporter.generate_html_report(all_results, template_string)
 
     # -------------------------
-    # 4. Save main report
+    # 11. Save main report
     # -------------------------
     save_report(output_path, html_report)
 
     # -------------------------
-    # 5. OPTIONAL: Save standalone orphan report (FULL HTML PAGE)
+    # 12. Generate standalone orphan report page
     # -------------------------
-    orphan_results = all_results.get("orphan_checker",{})
-
     orphan_html = generate_orphan_report_page(
-            orphan_results,
-            project_name=all_results["project_name"]
-        )
+        orphan_report,
+        project_name=all_results["project_name"]
+    )
 
     orphan_report_path = os.path.join(
-            os.path.dirname(output_path),
-            "orphan_report.html"
-        )
+        os.path.dirname(output_path),
+        "orphan_report.html"
+    )
 
     save_report(orphan_report_path, orphan_html)
 
     logger.info("Mule Validator CLI execution completed successfully!")
+    logger.info(f"Overall Status: {all_results['status']}")
 
 # -------------------------
 # Entry point

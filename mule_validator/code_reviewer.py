@@ -459,18 +459,18 @@ def review_all_files(directory):
         directory (str): The root directory to start searching for XML files.
 
     Returns:
-        tuple[list[list[str]], bool]: A tuple containing:
-            - A list of lists, where each inner list contains `[file_name, status_message, issue_description]`.
+        tuple[list[list], bool]: A tuple containing:
+            - A list of lists, where each inner list contains `[file_name, severity, issue_description]`.
               This format is suitable for tabular display.
             - A boolean that is True if any file in the project contains Mule Secure
               Properties configuration (`<secure-properties:config>`), otherwise False.
     """
-    all_issues_data = []  # Stores [file_name, status, issue_description] for all files
+    all_issues_data = []  # Stores [file_name, severity, issue_description] for all files
     project_uses_secure_properties = False  # Flag for overall project secure properties usage
 
     for root_dir, _, files in os.walk(directory):
         # Standard Mule project folders to exclude from review
-        if 'target' in root_dir or 'test' in root_dir:
+        if any(skip in root_dir for skip in ['target', 'test', '.tooling-project', '.temp']):
             continue  # Skip these directories
 
         for file_name in files:
@@ -488,15 +488,12 @@ def review_all_files(directory):
                 if found_secure_config_in_this_file:
                     project_uses_secure_properties = True
                 
-                # Aggregate results for reporting
+                # Aggregate results for reporting - FIXED FORMAT
                 if issues_for_file:
                     for issue in issues_for_file:
-                        all_issues_data.append([file_name, "Issue Found", issue])
-                else:
-                    # Record that the file was checked and had no issues.
-                    # This maintains a consistent data structure for all_issues_data.
-                    all_issues_data.append([file_name, "No Issues", ""])
-    
+                        # Return as list of lists for tabular format
+                        all_issues_data.append([file_name, "WARNING", issue])
+                        
     return all_issues_data, project_uses_secure_properties
 
 # Example usage
