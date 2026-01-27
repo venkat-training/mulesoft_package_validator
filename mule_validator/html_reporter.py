@@ -84,104 +84,99 @@ def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
     # --- Summary
     summary = orphan_results.get("summary", {})
     if summary:
-        html += "<h2>Summary</h2><ul>"
+        html += "<h3>Summary</h3><ul>"
         for key, value in summary.items():
             display_key = key.replace("_", " ").title()
-            html += f"<li><b>{display_key}:</b> {value}</li>"
+            html += f"<li><strong>{display_key}:</strong> {value}</li>"
         html += "</ul>"
 
     # --- Orphans by category
     orphans = orphan_results.get("orphans", {})
     if orphans:
-        html += "<h2>🛑 Orphan Items</h2>"
+        html += "<h3>🛑 Orphan Items</h3>"
         for category, items in orphans.items():
+            if not items:  # Skip empty categories
+                continue
+                
             display_category = category.replace('_', ' ').title()
-            html += f"<details><summary>{display_category} ({len(items)})</summary><ul>"
+            html += f"<details><summary><strong>{display_category} ({len(items)})</strong></summary><ul>"
             
             # Handle different item structures
-            if category in ['flows', 'subflows']:
-                # These are tuples: (name, file_path)
-                for item in items:
+            for item in items:
+                if category in ['flows', 'subflows']:
+                    # These are tuples: (name, file_path)
                     if isinstance(item, (tuple, list)) and len(item) >= 2:
                         name, file_path = item[0], item[1]
                         html += f"<li><code class='orphan'>{name}</code> — <small>{file_path}</small></li>"
                     else:
                         html += f"<li><code class='orphan'>{item}</code></li>"
-            elif category == 'variables':
-                # Variables are tuples: (var_name, flow_name, file_path)
-                for item in items:
+                elif category == 'variables':
+                    # Variables are tuples: (var_name, flow_name, file_path)
                     if isinstance(item, (tuple, list)) and len(item) >= 3:
                         var_name, flow_name, file_path = item[0], item[1], item[2]
                         html += f"<li><code class='orphan'>{var_name}</code> — <small>Flow: {flow_name}, File: {file_path}</small></li>"
                     else:
                         html += f"<li><code class='orphan'>{item}</code></li>"
-            else:
-                # Simple strings or other items
-                for item in items:
+                else:
+                    # Simple strings or other items
                     html += f"<li><code class='orphan'>{item}</code></li>"
             
             html += "</ul></details>"
 
-    # --- Used items (if present)
+    # --- Used items (collapsed by default for brevity)
     used_items = orphan_results.get("used", {})
     if used_items:
-        html += "<h2>✅ Used Items</h2>"
+        html += "<h3>✅ Used Items</h3>"
         for category, items in used_items.items():
+            if not items:  # Skip empty categories
+                continue
+                
             display_category = category.replace('_', ' ').title()
-            html += f"<details><summary>{display_category} ({len(items)})</summary><ul>"
+            html += f"<details><summary><strong>{display_category} ({len(items)})</strong></summary><ul>"
             
-            # Handle different item structures
-            if category in ['flows', 'subflows']:
-                # These are tuples: (name, file_path)
-                for item in items:
+            for item in items:
+                if category in ['flows', 'subflows']:
                     if isinstance(item, (tuple, list)) and len(item) >= 2:
                         name, file_path = item[0], item[1]
                         html += f"<li><code class='used'>{name}</code> — <small>{file_path}</small></li>"
                     else:
                         html += f"<li><code class='used'>{item}</code></li>"
-            elif category == 'variables':
-                # Variables are tuples: (var_name, flow_name, file_path)
-                for item in items:
+                elif category == 'variables':
                     if isinstance(item, (tuple, list)) and len(item) >= 3:
                         var_name, flow_name, file_path = item[0], item[1], item[2]
                         html += f"<li><code class='used'>{var_name}</code> — <small>Flow: {flow_name}, File: {file_path}</small></li>"
                     else:
                         html += f"<li><code class='used'>{item}</code></li>"
-            else:
-                # Simple strings or other items
-                for item in items:
+                else:
                     html += f"<li><code class='used'>{item}</code></li>"
             
             html += "</ul></details>"
 
-    # --- Declared items (if present)
+    # --- Declared items (collapsed by default)
     declared_items = orphan_results.get("declared", {})
     if declared_items:
-        html += "<h2>📦 Declared Items</h2>"
+        html += "<h3>📦 Declared Items</h3>"
         for category, items in declared_items.items():
+            if not items:  # Skip empty categories
+                continue
+                
             display_category = category.replace('_', ' ').title()
-            html += f"<details><summary>{display_category} ({len(items)})</summary><ul>"
+            html += f"<details><summary><strong>{display_category} ({len(items)})</strong></summary><ul>"
             
-            # Handle different item structures
-            if category == 'subflows':
-                # Subflows are tuples: (name, file_path)
-                for item in items:
+            for item in items:
+                if category == 'subflows':
                     if isinstance(item, (tuple, list)) and len(item) >= 2:
                         name, file_path = item[0], item[1]
                         html += f"<li><code class='declared'>{name}</code> — <small>{file_path}</small></li>"
                     else:
                         html += f"<li><code class='declared'>{item}</code></li>"
-            elif category == 'variables':
-                # Variables are tuples: (var_name, flow_name, file_path)
-                for item in items:
+                elif category == 'variables':
                     if isinstance(item, (tuple, list)) and len(item) >= 3:
                         var_name, flow_name, file_path = item[0], item[1], item[2]
                         html += f"<li><code class='declared'>{var_name}</code> — <small>Flow: {flow_name}, File: {file_path}</small></li>"
                     else:
                         html += f"<li><code class='declared'>{item}</code></li>"
-            else:
-                # Simple strings or other items (flows, configs, property_keys, etc.)
-                for item in items:
+                else:
                     html += f"<li><code class='declared'>{item}</code></li>"
             
             html += "</ul></details>"
@@ -189,9 +184,11 @@ def _format_orphan_results(orphan_results: Dict[str, Any]) -> str:
     # --- Validation errors
     validation_errors = orphan_results.get("validation_errors", [])
     if validation_errors:
-        html += "<h4>Validation Errors</h4><ul>"
-        for error in validation_errors:
-            html += f"<li>{error}</li>"
+        html += "<h4>⚠️ Validation Warnings</h4><ul>"
+        for error in validation_errors[:10]:  # Show first 10
+            html += f"<li><small>{error}</small></li>"
+        if len(validation_errors) > 10:
+            html += f"<li><em>...and {len(validation_errors) - 10} more warnings</em></li>"
         html += "</ul>"
 
     return html
@@ -285,43 +282,131 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     # -------------------------
     # Fallback replacements for unimplemented sections
     # -------------------------
-    # -- Code review issues
+    # -------------------------
+    # Code Review Issues
+    # -------------------------
     code_review_issues = all_results.get('code_reviewer_issues')
     if code_review_issues and len(code_review_issues) > 0:
         html_content = html_content.replace(
             "{{code_review_issues_table}}",
             _format_data_to_html(code_review_issues, headers=["File", "Severity", "Issue"])
         )
-    # -- YAML validation
+
+    # -------------------------
+    # YAML Validation
+    # -------------------------
     yaml_validation = all_results.get('yaml_validation')
-    if yaml_validation:
-        html_content = html_content.replace(
-            "{{yaml_validation_results_table}}",
-            _format_data_to_html(yaml_validation, headers=["File/Item", "Error Type", "Details"])
-        )
-    # -- Dependency validation
+    if yaml_validation and len(yaml_validation) > 0:
+        if isinstance(yaml_validation[0], dict):
+            yaml_as_lists = [[item.get('file', item.get('item', 'Unknown')), 
+                            item.get('error_type', 'Unknown'), 
+                            item.get('details', item.get('message', ''))] 
+                            for item in yaml_validation]
+            html_content = html_content.replace(
+                "{{yaml_validation_results_table}}",
+                _format_data_to_html(yaml_as_lists, headers=["File/Item", "Error Type", "Details"])
+            )
+        else:
+            html_content = html_content.replace(
+                "{{yaml_validation_results_table}}",
+                _format_data_to_html(yaml_validation, headers=["File/Item", "Error Type", "Details"])
+            )
+
+    # -------------------------
+    # Dependency Validation
+    # -------------------------
     dependency_validation = all_results.get('dependency_validation')
-    if dependency_validation:
-        html_content = html_content.replace(
-            "{{dependency_validation_results_table}}",
-            _format_data_to_html(dependency_validation)
-        )
+    if dependency_validation and isinstance(dependency_validation, dict):
+        dep_html = "<h4>Dependency Analysis by POM File</h4>"
+        for pom_file, dep_data in dependency_validation.items():
+            if isinstance(dep_data, dict):
+                dep_html += f"<h5>{pom_file}</h5><ul>"
+                
+                missing = dep_data.get('missing_jars', [])
+                if missing:
+                    dep_html += f"<li><strong>Missing JARs ({len(missing)}):</strong><ul>"
+                    for jar in missing[:5]:
+                        dep_html += f"<li><code>{jar}</code></li>"
+                    if len(missing) > 5:
+                        dep_html += f"<li><em>...and {len(missing) - 5} more</em></li>"
+                    dep_html += "</ul></li>"
+                
+                unresolved = dep_data.get('unresolved_dependencies', [])
+                if unresolved:
+                    dep_html += f"<li><strong>Unresolved Dependencies ({len(unresolved)}):</strong><ul>"
+                    for dep in unresolved[:5]:
+                        dep_html += f"<li><code>{dep}</code></li>"
+                    if len(unresolved) > 5:
+                        dep_html += f"<li><em>...and {len(unresolved) - 5} more</em></li>"
+                    dep_html += "</ul></li>"
+                
+                duplicates = dep_data.get('duplicate_dependencies', [])
+                if duplicates:
+                    dep_html += f"<li><strong>Duplicate Dependencies ({len(duplicates)}):</strong><ul>"
+                    for dup in duplicates:
+                        dep_html += f"<li><code>{dup}</code></li>"
+                    dep_html += "</ul></li>"
+                
+                all_deps = dep_data.get('all_dependencies', [])
+                dep_html += f"<li><strong>Total Dependencies:</strong> {len(all_deps)}</li>"
+                dep_html += "</ul>"
+        
+        html_content = html_content.replace("{{dependency_validation_results_table}}", dep_html)
 
-    # -- Flow validation
+    # -------------------------
+    # Flow Validation
+    # -------------------------
     flow_validation = all_results.get('flow_validation')
-    if flow_validation:
-        html_content = html_content.replace(
-            "{{flow_validation_results_table}}",
-            _format_data_to_html(flow_validation)
-        )
+    if flow_validation and isinstance(flow_validation, dict):
+        flow_html = "<h4>Flow Analysis Summary</h4><ul>"
+        
+        total_counts = flow_validation.get('total_counts', {})
+        flow_html += f"<li><strong>Total Flows:</strong> {total_counts.get('flows', 0)}</li>"
+        flow_html += f"<li><strong>Total Sub-Flows:</strong> {total_counts.get('sub_flows', 0)}</li>"
+        flow_html += f"<li><strong>Total Components:</strong> {total_counts.get('components', 0)}</li>"
+        
+        flows_ok = flow_validation.get('flows_ok', True)
+        sub_flows_ok = flow_validation.get('sub_flows_ok', True)
+        components_ok = flow_validation.get('components_ok', True)
+        naming_ok = flow_validation.get('flow_names_camel_case_ok', True)
+        
+        flow_html += f"<li><strong>Flows within limit:</strong> <span class='badge {'pass' if flows_ok else 'warn'}'>{'✓' if flows_ok else '✗'}</span></li>"
+        flow_html += f"<li><strong>Sub-flows within limit:</strong> <span class='badge {'pass' if sub_flows_ok else 'warn'}'>{'✓' if sub_flows_ok else '✗'}</span></li>"
+        flow_html += f"<li><strong>Components within limit:</strong> <span class='badge {'pass' if components_ok else 'warn'}'>{'✓' if components_ok else '✗'}</span></li>"
+        flow_html += f"<li><strong>Naming conventions:</strong> <span class='badge {'pass' if naming_ok else 'warn'}'>{'✓' if naming_ok else '✗'}</span></li>"
+        
+        invalid_names = flow_validation.get('invalid_flow_names', [])
+        if invalid_names:
+            flow_html += f"<li><strong>Invalid Flow Names ({len(invalid_names)}):</strong><ul>"
+            for name in invalid_names:
+                flow_html += f"<li><code>{name}</code></li>"
+            flow_html += "</ul></li>"
+        
+        flow_html += "</ul>"
+        html_content = html_content.replace("{{flow_validation_results_table}}", flow_html)
 
-    # -- API validation
+    # -------------------------
+    # API Validation
+    # -------------------------
     api_validation = all_results.get('api_validation')
-    if api_validation:
-        html_content = html_content.replace(
-            "{{api_validation_results_table}}",
-            _format_data_to_html(api_validation)
-        )
+    if api_validation and isinstance(api_validation, dict):
+        api_html = "<ul>"
+        api_html += f"<li><strong>API Spec Dependency:</strong> {api_validation.get('api_spec_dependency', 'Not found')}</li>"
+        api_html += f"<li><strong>API Spec ZIP Found:</strong> <span class='badge {'pass' if api_validation.get('api_spec_zip_found') else 'error'}'>{'Yes' if api_validation.get('api_spec_zip_found') else 'No'}</span></li>"
+        api_html += f"<li><strong>APIkit Router Found:</strong> <span class='badge {'pass' if api_validation.get('apikit_router_found') else 'error'}'>{'Yes' if api_validation.get('apikit_router_found') else 'No'}</span></li>"
+        
+        if api_validation.get('apikit_router_file'):
+            api_html += f"<li><strong>APIkit Router File:</strong> <code>{api_validation.get('apikit_router_file')}</code></li>"
+        
+        notes = api_validation.get('notes', [])
+        if notes:
+            api_html += "<li><strong>Notes:</strong><ul>"
+            for note in notes:
+                api_html += f"<li>{note}</li>"
+            api_html += "</ul></li>"
+        
+        api_html += "</ul>"
+        html_content = html_content.replace("{{api_validation_results_table}}", api_html)
 
     # -- Components validation
     components_validation = all_results.get('components_validator')
@@ -339,21 +424,36 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
             f"<p>{secure_properties}</p>"
         )
     
-    # -- Logging validation
+    # -------------------------
+    # Logging Validation
+    # -------------------------
     logging_validation = all_results.get('logging_validation')
     logs_html = ""
 
-    if logging_validation:
-        # Logger issues
+    if logging_validation and isinstance(logging_validation, dict):
         logger_issues = logging_validation.get("logger_issues", [])
         if logger_issues:
             logs_html += "<h4>Logger Issues</h4>"
-            logs_html += _format_data_to_html(logger_issues)
-        # Log4j warnings
+            logs_html += "<table><thead><tr><th>File</th><th>Flow</th><th>Loggers</th><th>Issues</th></tr></thead><tbody>"
+            for issue in logger_issues:
+                issues_list = []
+                if issue.get('has_too_many_loggers'):
+                    issues_list.append(f"Too many loggers ({issue.get('logger_count')})")
+                if issue.get('has_debug'):
+                    issues_list.append(f"DEBUG level used ({issue.get('debug_count')} times)")
+                if issue.get('error_outside_exception'):
+                    issues_list.append("ERROR logged outside exception handler")
+                
+                issues_str = ", ".join(issues_list) if issues_list else "No issues"
+                logs_html += f"<tr><td><code>{issue.get('file')}</code></td><td><code>{issue.get('flow')}</code></td><td>{issue.get('logger_count')}</td><td>{issues_str}</td></tr>"
+            logs_html += "</tbody></table>"
+        
         log4j_warnings = logging_validation.get("log4j_warnings", [])
         if log4j_warnings:
-            logs_html += "<h4>Log4j Warnings</h4>"
-            logs_html += _format_data_to_html(log4j_warnings)
+            logs_html += "<h4>Log4j Configuration Warnings</h4><ul>"
+            for warning in log4j_warnings:
+                logs_html += f"<li>{warning}</li>"
+            logs_html += "</ul>"
 
     # -------------------------
     # Threshold warnings
