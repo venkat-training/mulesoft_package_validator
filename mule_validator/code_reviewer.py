@@ -47,9 +47,7 @@ def check_flow_names(root, namespaces):
     """
     Checks for issues with flow names in the XML configuration.
 
-    Flow names are validated for camel case format. The validation logic specifically
-    targets the core part of the flow name, attempting to exclude potential APIkit
-    router or other namespace prefixes/suffixes before applying camel case rules.
+    Flow names are validated for camel case format.
 
     Args:
         root (lxml.etree._Element): The root element of the parsed XML.
@@ -61,28 +59,28 @@ def check_flow_names(root, namespaces):
     issues = []
     for flow in root.findall(".//mule:flow", namespaces=namespaces):
         name = flow.get("name")
+        print(f"DEBUG check_flow_names: Processing flow '{name}'") # Debug statement
         if not name:
             issues.append("Flow is missing a name attribute.")
         else:
-            name_to_check = name
-            first_colon_idx = name.find(':')
-            if first_colon_idx != -1:
-                # Part after the first colon
-                substring_after_first_colon = name[first_colon_idx+1:]
-                second_colon_idx = substring_after_first_colon.find(':')
-                if second_colon_idx != -1:
-                    # There is a second colon, take the part between the first and second
-                    name_to_check = substring_after_first_colon[:second_colon_idx]
+            # For APIKit flows like "get:resource:config", extract the middle part
+            if ':' in name:
+                parts = name.split(':')
+                if len(parts) >= 2:
+                    # Check the middle part (e.g., "resource" from "get:resource:config")
+                    name_to_check = parts[1] if len(parts) > 2 else parts[-1]
                 else:
-                    # No second colon, take the whole part after the first colon
-                    name_to_check = substring_after_first_colon
-
-            # It's possible name_to_check is empty if the format is like "get::config" or "http:"
-            # Add a check to ensure name_to_check is not empty before validation
-            if not name_to_check:
-                issues.append(f"Flow name '{name}' results in an empty part for validation after APIkit prefix/suffix removal.")
-            elif not validate_flow_name_camel_case(name_to_check):
-                issues.append(f"Flow name part '{name_to_check}' (from original: '{name}') does not comply with camel case format.")
+                    name_to_check = name
+            else:
+                # No colon, check the entire name
+                name_to_check = name
+            
+            # Validate the extracted name part
+            if name_to_check and not validate_flow_name_camel_case(name_to_check):
+                issue_msg = f"Flow name '{name}' does not comply with camel case naming convention."
+                print(f"DEBUG check_flow_names: ADDING ISSUE: {issue_msg}")
+                issues.append(f"Flow name '{name}' does not comply with camel case naming convention.")
+    print(f"DEBUG check_flow_names: Total issues found: {len(issues)}")
     return issues
 
 def check_http_listener(root: etree._Element, namespaces: dict) -> list[str]:
@@ -432,6 +430,7 @@ def review_mulesoft_code(file_path):
         # Removed duplicate check_s3 call
         issues.extend(check_smtp(root, namespaces))
 
+        print(f"DEBUG review_mulesoft_code: File {file_path} has {len(issues)} total issues") # Debug statement
         # Check for Mule Secure Properties configuration in this specific file
         uses_secure_config_in_file = _contains_secure_properties_config(root, namespaces)
         
@@ -483,6 +482,7 @@ def review_all_files(directory):
                 
                 # Review individual file for issues and secure properties usage
                 issues_for_file, found_secure_config_in_this_file = review_mulesoft_code(file_path)
+                print(f"DEBUG review_all_files: {file_name} returned {len(issues_for_file)} issues")    # Debug statement
                 
                 # If secure properties config found in this file, mark it for the project
                 if found_secure_config_in_this_file:
@@ -490,10 +490,11 @@ def review_all_files(directory):
                 
                 # Aggregate results for reporting - FIXED FORMAT
                 if issues_for_file:
+                    print(f"DEBUG review_all_files: Adding {len(issues_for_file)} issues to all_issues_data") # Debug statement
                     for issue in issues_for_file:
                         # Return as list of lists for tabular format
                         all_issues_data.append([file_name, "WARNING", issue])
-                        
+    print(f"DEBUG review_all_files: FINAL TOTAL: {len(all_issues_data)} issue rows") # Debug statement                    
     return all_issues_data, project_uses_secure_properties
 
 # Example usage

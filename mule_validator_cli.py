@@ -158,9 +158,11 @@ def main():
     # -------------------------
     logger.info("Reviewing code and flows...")
     try:
-        raw_code_reviewer_results, project_uses_secure_properties = code_reviewer.review_all_files(project_path)
-        flat_results = flatten_code_review_results(raw_code_reviewer_results)
-        code_reviewer_results = normalize_code_review_results(raw_code_reviewer_results)
+        code_reviewer_results, project_uses_secure_properties = code_reviewer.review_all_files(project_path)
+        #flat_results = flatten_code_review_results(raw_code_reviewer_results)
+        #code_reviewer_results = normalize_code_review_results(raw_code_reviewer_results)
+        logger.info(f"DEBUG: Code review results count: {len(code_reviewer_results) if code_reviewer_results else 0}")
+        logger.info(f"DEBUG: Code review sample: {code_reviewer_results[:2] if code_reviewer_results else 'empty'}")
     except Exception as e:
         logger.error(f"Code review failed: {e}")
         code_reviewer_results = []

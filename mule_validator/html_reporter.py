@@ -297,7 +297,7 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     # -------------------------
     yaml_validation = all_results.get('yaml_validation')
     if yaml_validation and len(yaml_validation) > 0:
-        if isinstance(yaml_validation[0], dict):
+        if isinstance(yaml_validation, list) and isinstance(yaml_validation[0], dict):
             yaml_as_lists = [[item.get('file', item.get('item', 'Unknown')), 
                             item.get('error_type', 'Unknown'), 
                             item.get('details', item.get('message', ''))] 
@@ -306,10 +306,17 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
                 "{{yaml_validation_results_table}}",
                 _format_data_to_html(yaml_as_lists, headers=["File/Item", "Error Type", "Details"])
             )
-        else:
+        elif isinstance(yaml_validation, list):
+            # List but not dicts - use as is
             html_content = html_content.replace(
                 "{{yaml_validation_results_table}}",
                 _format_data_to_html(yaml_validation, headers=["File/Item", "Error Type", "Details"])
+            )
+        else:
+            # It's a dict or other type - convert to message
+            html_content = html_content.replace(
+                "{{yaml_validation_results_table}}",
+                f"<p>{str(yaml_validation)}</p>"
             )
 
     # -------------------------
@@ -389,24 +396,32 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     # API Validation
     # -------------------------
     api_validation = all_results.get('api_validation')
-    if api_validation and isinstance(api_validation, dict):
-        api_html = "<ul>"
-        api_html += f"<li><strong>API Spec Dependency:</strong> {api_validation.get('api_spec_dependency', 'Not found')}</li>"
-        api_html += f"<li><strong>API Spec ZIP Found:</strong> <span class='badge {'pass' if api_validation.get('api_spec_zip_found') else 'error'}'>{'Yes' if api_validation.get('api_spec_zip_found') else 'No'}</span></li>"
-        api_html += f"<li><strong>APIkit Router Found:</strong> <span class='badge {'pass' if api_validation.get('apikit_router_found') else 'error'}'>{'Yes' if api_validation.get('apikit_router_found') else 'No'}</span></li>"
-        
-        if api_validation.get('apikit_router_file'):
-            api_html += f"<li><strong>APIkit Router File:</strong> <code>{api_validation.get('apikit_router_file')}</code></li>"
-        
-        notes = api_validation.get('notes', [])
-        if notes:
-            api_html += "<li><strong>Notes:</strong><ul>"
-            for note in notes:
-                api_html += f"<li>{note}</li>"
-            api_html += "</ul></li>"
-        
-        api_html += "</ul>"
-        html_content = html_content.replace("{{api_validation_results_table}}", api_html)
+    if api_validation:
+        # Check if it's a dict (real CLI data) or list (test mock data)
+        if isinstance(api_validation, dict):
+            api_html = "<ul>"
+            api_html += f"<li><strong>API Spec Dependency:</strong> {api_validation.get('api_spec_dependency', 'Not found')}</li>"
+            api_html += f"<li><strong>API Spec ZIP Found:</strong> <span class='badge {'pass' if api_validation.get('api_spec_zip_found') else 'error'}'>{'Yes' if api_validation.get('api_spec_zip_found') else 'No'}</span></li>"
+            api_html += f"<li><strong>APIkit Router Found:</strong> <span class='badge {'pass' if api_validation.get('apikit_router_found') else 'error'}'>{'Yes' if api_validation.get('apikit_router_found') else 'No'}</span></li>"
+            
+            if api_validation.get('apikit_router_file'):
+                api_html += f"<li><strong>APIkit Router File:</strong> <code>{api_validation.get('apikit_router_file')}</code></li>"
+            
+            notes = api_validation.get('notes', [])
+            if notes:
+                api_html += "<li><strong>Notes:</strong><ul>"
+                for note in notes:
+                    api_html += f"<li>{note}</li>"
+                api_html += "</ul></li>"
+            
+            api_html += "</ul>"
+            html_content = html_content.replace("{{api_validation_results_table}}", api_html)
+        elif isinstance(api_validation, list):
+            # Test data - list of dicts, display as table
+            html_content = html_content.replace(
+                "{{api_validation_results_table}}",
+                _format_data_to_html(api_validation, headers="firstrow")
+            )
 
     # -- Components validation
     components_validation = all_results.get('components_validator')
@@ -433,20 +448,28 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
     if logging_validation and isinstance(logging_validation, dict):
         logger_issues = logging_validation.get("logger_issues", [])
         if logger_issues:
-            logs_html += "<h4>Logger Issues</h4>"
-            logs_html += "<table><thead><tr><th>File</th><th>Flow</th><th>Loggers</th><th>Issues</th></tr></thead><tbody>"
-            for issue in logger_issues:
-                issues_list = []
-                if issue.get('has_too_many_loggers'):
-                    issues_list.append(f"Too many loggers ({issue.get('logger_count')})")
-                if issue.get('has_debug'):
-                    issues_list.append(f"DEBUG level used ({issue.get('debug_count')} times)")
-                if issue.get('error_outside_exception'):
-                    issues_list.append("ERROR logged outside exception handler")
-                
-                issues_str = ", ".join(issues_list) if issues_list else "No issues"
-                logs_html += f"<tr><td><code>{issue.get('file')}</code></td><td><code>{issue.get('flow')}</code></td><td>{issue.get('logger_count')}</td><td>{issues_str}</td></tr>"
-            logs_html += "</tbody></table>"
+            logs_html += "<h4>Logger Issues</h4>"            
+            # to verify first item is a dict before treating all as dicts
+            if isinstance(logger_issues[0], dict):
+                logs_html += "<table><thead><tr><th>File</th><th>Flow</th><th>Loggers</th><th>Issues</th></tr></thead><tbody>"
+                for issue in logger_issues:
+                    issues_list = []
+                    if issue.get('has_too_many_loggers'):
+                        issues_list.append(f"Too many loggers ({issue.get('logger_count')})")
+                    if issue.get('has_debug'):
+                        issues_list.append(f"DEBUG level used ({issue.get('debug_count')} times)")
+                    if issue.get('error_outside_exception'):
+                        issues_list.append("ERROR logged outside exception handler")
+                    
+                    issues_str = ", ".join(issues_list) if issues_list else "No issues"
+                    logs_html += f"<tr><td><code>{issue.get('file')}</code></td><td><code>{issue.get('flow')}</code></td><td>{issue.get('logger_count')}</td><td>{issues_str}</td></tr>"
+                logs_html += "</tbody></table>"
+            else:
+                # Test/mock data - display as simple list
+                logs_html += "<ul>"
+                for issue in logger_issues:
+                    logs_html += f"<li>{str(issue)}</li>"
+                logs_html += "</ul>"
         
         log4j_warnings = logging_validation.get("log4j_warnings", [])
         if log4j_warnings:
@@ -454,6 +477,11 @@ def generate_html_report(all_results: Dict[str, Any], template_string: str) -> s
             for warning in log4j_warnings:
                 logs_html += f"<li>{warning}</li>"
             logs_html += "</ul>"
+
+    if not logs_html:
+        logs_html = "<p>No logging issues detected.</p>"
+
+    html_content = html_content.replace("{{logging_validation_results_table}}", logs_html)
 
     # -------------------------
     # Threshold warnings
