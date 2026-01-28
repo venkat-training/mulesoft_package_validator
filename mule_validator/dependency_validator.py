@@ -334,7 +334,7 @@ def check_dependency_resolution(group_id, artifact_id, version, classifier=None,
 
     Note:
         This function may rely on a hardcoded path to the Maven executable
-        (e.g., `r"C:\apps\apache-maven-3.9.9\bin\mvn.cmd"`) which might not be suitable
+        (e.g., r"C:\apps\apache-maven-3.9.9\bin\mvn.cmd") which might not be suitable
         for all environments. This path should ideally be configurable.
         The Maven command execution has a timeout of 30 seconds.
 

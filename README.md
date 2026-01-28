@@ -1,7 +1,7 @@
 # 🛡️ MuleSoft Package Validator
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-167%20passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-171%20passing-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![DEV.to Challenge](https://img.shields.io/badge/DEV.to-GitHub%20Challenge-black.svg)](https://dev.to/challenges/github-2026-01-21)
 
@@ -84,20 +84,63 @@ cd mulesoft_package_validator
 # Install dependencies
 pip install -r requirements.txt
 
-# Install in development mode
+# Install CLI command
 pip install -e .
+
+# Verify installation
+mule-validator --help
 ```
 
 ### Basic Usage
 
+**Option 1: Using installed command** (if PATH configured):
 ```bash
-# Run comprehensive validation
 mule-validator /path/to/mulesoft/project
+```
 
-# Generate HTML report
+**Option 2: Using Python module** (works everywhere):
+```bash
+python -m mule_validator_cli --project /path/to/mulesoft/project
+```
+
+**Windows users**: If `mule-validator` doesn't work, use Option 2 or add Python Scripts to PATH (see [Windows Setup](#-windows-users-path-configuration) below).
+
+---
+
+## 🪟 Windows Users: PATH Configuration
+
+If you get `command not recognized` error after installation:
+
+**Quick Solution:**
+```powershell
+# Use Python module instead
+python -m mule_validator_cli --project C:\path\to\mulesoft\project
+```
+
+**Permanent Solution - Add to PATH:**
+1. Press `Win + X` → System → Advanced system settings
+2. Environment Variables → User variables → Path → Edit
+3. Add: `C:\Users\YOUR_USERNAME\AppData\Roaming\Python\Python314\Scripts`
+4. Click OK, restart PowerShell
+5. Test: `mule-validator --help`
+
+**Alternative - PowerShell Alias:**
+```powershell
+# Add to your PowerShell profile
+Set-Alias mule-validator "$env:APPDATA\Python\Python314\Scripts\mule-validator.exe"
+```
+
+---
+
+## 📊 Advanced Usage Examples
+
+### Generate HTML Report
+```bash
 mule-validator /path/to/mulesoft/project --report-file report.html
+```
 
-# Custom validation thresholds
+### Custom Validation Thresholds
+```bash
 mule-validator /path/to/mulesoft/project \
   --max-flows 150 \
   --max-components 600 \
@@ -106,20 +149,32 @@ mule-validator /path/to/mulesoft/project \
 
 ### Command-Line Options
 
-```
+**Using `mule-validator` (if on PATH):**
+```bash
 mule-validator <package_folder_path> [OPTIONS]
-
-Positional Arguments:
-  package_folder_path          Path to MuleSoft project root
 
 Options:
   --report-file FILE           Save HTML validation report
-  --orphan-report-file FILE    Save separate orphan flow report
-  --fail-on {WARN,ERROR}       Exit with error code on severity level
-  --max-build-size-mb SIZE     Maximum build size in MB (default: 100)
-  --max-flows COUNT            Maximum flow count (default: 100)
-  --max-sub-flows COUNT        Maximum sub-flow count (default: 50)
-  --max-components COUNT       Maximum component count (default: 500)
+  --orphan-report-file FILE    Save separate orphan report
+  --fail-on {WARN,ERROR}       Exit with error code on severity
+  --max-build-size-mb SIZE     Maximum build size (default: 100)
+  --max-flows COUNT            Maximum flows (default: 100)
+  --max-sub-flows COUNT        Maximum sub-flows (default: 50)
+  --max-components COUNT       Maximum components (default: 500)
+```
+
+**Using `python -m mule_validator_cli`:**
+```bash
+python -m mule_validator_cli --project <path> [OPTIONS]
+
+Options:
+  --project PROJECT            Path to MuleSoft project (required)
+  --template TEMPLATE          Path to HTML report template
+  --output OUTPUT              Path to output HTML report
+  --max-flows MAX_FLOWS        Maximum allowed flows
+  --max-sub-flows COUNT        Maximum sub-flows
+  --max-components COUNT       Maximum components
+  --max-build-size-mb SIZE     Maximum build size in MB
 ```
 
 ---
@@ -148,7 +203,7 @@ Options:
 ✅ **GitHub Copilot CLI Usage**: Documented with specific commands and examples  
 ✅ **Source Code**: Available at [github.com/venkat-training/mulesoft_package_validator](https://github.com/venkat-training/mulesoft_package_validator)  
 ✅ **README**: Comprehensive documentation with setup instructions  
-✅ **Tests**: 167 automated tests with 85% coverage  
+✅ **Tests**: 171 automated tests with 85% coverage  
 
 ### How to Verify
 ```bash
@@ -156,14 +211,16 @@ Options:
 git clone https://github.com/venkat-training/mulesoft_package_validator.git
 cd mulesoft_package_validator
 pip install -r requirements.txt
-pytest  # Run 167 tests
-mule-validator --help  # See CLI options
+pip install -e .
+pytest  # Run 171 tests
+python -m mule_validator_cli --help  # See CLI options
 ```
 
 ### Why This Project Matters
 MuleSoft integration projects face real security and quality challenges. This tool automates validation that would otherwise take hours of manual code review, catching issues before production deployment.
 
 ---
+
 ## 🎥 Demo
 
 ### Quick Demo
@@ -172,9 +229,10 @@ MuleSoft integration projects face real security and quality challenges. This to
 git clone https://github.com/venkat-training/mulesoft_package_validator.git
 cd mulesoft_package_validator
 pip install -r requirements.txt
-mule-validator ./sample_projects/demo-app
+pip install -e .
+python -m mule_validator_cli --project ./sample_projects/demo-app
 
-# Output:
+# Expected Output:
 # ✅ Flows: 12 (limit: 100)
 # ⚠️  Security warning: Hardcoded password detected
 # 📊 Report generated: validation_report.html
@@ -186,16 +244,26 @@ mule-validator ./sample_projects/demo-app
 - ✅ HTML report generation
 - ✅ Batch processing multiple projects
 
-💡 **Try it yourself**: Run `mule-validator --help` for all options
+💡 **Try it yourself**: Run `python -m mule_validator_cli --help` for all options
+
 ---
 
 ## 💻 Usage Examples
 
 ### Example 1: Basic Validation
 
-```bash
-$ mule-validator /projects/my-mule-app
+**Windows:**
+```powershell
+python -m mule_validator_cli --project C:\projects\my-mule-app
+```
 
+**Linux/Mac (or Windows with PATH configured):**
+```bash
+mule-validator /projects/my-mule-app
+```
+
+**Output:**
+```
 ================================================================================
 VALIDATION REPORT
 ================================================================================
@@ -297,7 +365,7 @@ Process multiple projects automatically:
 
 ## 🧪 Testing
 
-**167 comprehensive tests** covering all validation modules.
+**171 comprehensive tests** covering all validation modules.
 
 ```bash
 # Run all tests
@@ -376,7 +444,7 @@ Overall                       85%
 - **XML Parsing**: lxml (robust XML/XPath support)
 - **YAML Processing**: PyYAML
 - **CLI Framework**: argparse
-- **Testing**: pytest (167 tests)
+- **Testing**: pytest (171 tests)
 - **Reporting**: tabulate, custom HTML templates
 - **Build Integration**: Maven (`mvn clean install`)
 
@@ -437,8 +505,6 @@ pip install -e .
 pytest
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
-
 ---
 
 ## 🐛 Troubleshooting
@@ -471,6 +537,10 @@ chmod +x scan_all_projects.sh
 # Windows PowerShell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
+
+**"Command not recognized" (Windows)**
+- Use `python -m mule_validator_cli` instead of `mule-validator`
+- Or add Python Scripts directory to PATH (see [Windows Setup](#-windows-users-path-configuration))
 
 ---
 
@@ -507,7 +577,9 @@ This project was created for the [DEV.to GitHub Challenge (January 2026)](https:
 - 📅 Development time: 40 hours
 - 🧪 Test coverage: 85%+
 - 📝 Lines of code: 3,500+
-- ✅ Tests: 167 passing
+- ✅ Tests: 171 passing
+
+---
 
 ## 🤖 How GitHub Copilot CLI Helped Build This
 
@@ -549,11 +621,11 @@ gh copilot suggest "Generate comprehensive README sections for a Python CLI tool
 # Copilot created initial README structure that I refined
 ```
 
-### Development Stats
+### Development Impact
 - 📅 Development time: 40 hours
 - 🧪 Test coverage: 85%+
 - 📝 Lines of code: 3,500+
-- ✅ Tests: 167 passing
+- ✅ Tests: 171 passing
 - ⚡ **Copilot saved ~15 hours** on boilerplate and testing
 
 ### Key Takeaways
@@ -563,7 +635,8 @@ GitHub Copilot CLI excelled at:
 - ✅ Explaining library-specific syntax (lxml, PyYAML)
 - ✅ Creating documentation templates
 
-**Challenge Submission Post**: Coming soon to DEV.to
+**Challenge Submission Article**: Coming soon to DEV.to
+
 ---
 
 ## 📄 License
