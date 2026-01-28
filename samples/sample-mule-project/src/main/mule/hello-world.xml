@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	
+	
+	<flow name="hello-worldFlow" doc:id="5f8dda31-53d1-4772-9230-5be97f3a3f59" >
+		<http:listener doc:name="Listener"			
+			config-ref="HTTP_Listener_config" path="/hello"
+			allowedMethods="GET">			
+		</http:listener>
+		
+		<ee:transform doc:name="Transform Message" doc:id="1dbec50e-7074-4892-8ce8-2229486049d6" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+fun greet(name: String) = 
+  if (isEmpty(name))
+   "Hello " ++ "World" ++ "!"
+ else
+   "Hello " ++ name ++ "!"
+---
+ {
+message: greet(attributes.queryParams.greeting default "") 
+  }]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	
+<flow name="orphan1" doc:id="f4e1f20c-cab8-414a-bb4e-a0d8a8b94fab">
+    <set-payload value="I am orphaned"/>
+</flow>
+
+<flow name="orphan2" doc:id="fe57920b-365f-43b6-a24f-86ad2b57cfc9">
+    <set-payload value="I am also orphaned"/>
+</flow>
+
+	
+</mule>

@@ -1,0 +1,16 @@
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties" xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation=" http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd  http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+  <http:listener-config doc:id="dc8a415e-781b-4b55-b594-b514d63a75d2" doc:name="HTTP Listener config" name="HTTP_Listener_config">
+    <http:listener-connection host="0.0.0.0" port="${http.private.port}">
+    </http:listener-connection>
+    <http:listener-interceptors>
+      <http:cors-interceptor>
+        <http:origins>
+          <http:public-resource></http:public-resource>
+        </http:origins>
+      </http:cors-interceptor>
+    </http:listener-interceptors>
+  </http:listener-config>
+  <configuration-properties doc:id="f3aed88f-1e9e-447c-a05e-8cb5564571e9" doc:name="Configuration properties" file="config-${env}.yaml"></configuration-properties>
+  <global-property doc:id="d8468c35-23c4-4d49-bc02-3c0b8acdfe4d" doc:name="Global Property" name="env" value="nonprod"></global-property>
+  <secure-properties:config doc:id="7c09fd13-dfde-4390-a151-66418d7f76ac" doc:name="Secure Properties Config" file="config-${env}.yaml" key="${encryption.key}" name="Secure_Properties_Config"></secure-properties:config>
+</mule>

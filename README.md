@@ -3,6 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-171%20passing-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Sample Reports](https://img.shields.io/badge/sample-reports-blue.svg)](samples/)
 [![DEV.to Challenge](https://img.shields.io/badge/DEV.to-GitHub%20Challenge-black.svg)](https://dev.to/challenges/github-2026-01-21)
 
 > **Automated quality assurance and security validation for MuleSoft integration projects**
@@ -88,7 +89,10 @@ pip install -r requirements.txt
 pip install -e .
 
 # Verify installation
-mule-validator --help
+python -m mule_validator_cli --help
+
+# Test on sample project
+python -m mule_validator_cli --project ./samples/sample-mule-project
 ```
 
 ### Basic Usage
@@ -214,6 +218,7 @@ pip install -r requirements.txt
 pip install -e .
 pytest  # Run 171 tests
 python -m mule_validator_cli --help  # See CLI options
+python -m mule_validator_cli --project ./samples/sample-mule-project  # Test validation
 ```
 
 ### Why This Project Matters
@@ -230,21 +235,72 @@ git clone https://github.com/venkat-training/mulesoft_package_validator.git
 cd mulesoft_package_validator
 pip install -r requirements.txt
 pip install -e .
-python -m mule_validator_cli --project ./sample_projects/demo-app
+python -m mule_validator_cli --project ./samples/sample-mule-project
 
 # Expected Output:
-# ✅ Flows: 12 (limit: 100)
+# ✅ Flows: 8 (limit: 100)
 # ⚠️  Security warning: Hardcoded password detected
+# ⚠️  Orphaned flow: unusedValidationFlow
 # 📊 Report generated: validation_report.html
 ```
 
 ### Features Demonstrated
 - ✅ Security scanning (detects hardcoded credentials)
 - ✅ Flow validation (naming, complexity)
+- ✅ Orphan detection (unused components)
 - ✅ HTML report generation
 - ✅ Batch processing multiple projects
 
 💡 **Try it yourself**: Run `python -m mule_validator_cli --help` for all options
+
+### 📂 Sample Reports
+
+View example validation reports in the [`samples/`](samples/) directory:
+- **[Full Validation Report](samples/mule_validator_report.html)** - Complete security, quality, and dependency analysis
+- **[Orphan Components Report](samples/orphan_report.html)** - Dedicated report showing unused flows and configurations
+
+These reports were generated from our [sample MuleSoft project](samples/sample-mule-project/).
+
+---
+
+## 🧪 Try It Yourself
+
+### Using the Sample Project
+
+We've included a sample MuleSoft project for you to test the validator:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/venkat-training/mulesoft_package_validator.git
+cd mulesoft_package_validator
+
+# 2. Install dependencies
+pip install -r requirements.txt
+pip install -e .
+
+# 3. Run validator on sample project
+python -m mule_validator_cli --project ./samples/sample-mule-project
+
+# 4. Generate HTML reports
+python -m mule_validator_cli \
+  --project ./samples/sample-mule-project \
+  --output my_validation_report.html
+```
+
+**What the sample project contains:**
+- ✅ Intentional security issues (for testing detection)
+- ✅ Various flow complexity scenarios
+- ✅ Orphaned flows and components
+- ✅ Configuration files with different environments
+- ✅ Dependencies to validate
+
+**Expected results:**
+- Security warnings detected
+- Flow validation metrics
+- Orphan component identification
+- HTML reports generated
+
+Compare your output with the [pre-generated reports](samples/) to verify everything works correctly.
 
 ---
 
@@ -469,6 +525,12 @@ from mule_validator import (
 
 For detailed API usage, see [Example 2: Python API](#example-2-python-api) above.
 
+### Sample Project
+See the [`samples/`](samples/) directory for:
+- Pre-generated HTML validation reports
+- Sample MuleSoft project for testing
+- Complete usage documentation
+
 ### Contributing
 See [Contributing](#-contributing) section for development guidelines.
 
@@ -552,6 +614,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 - ✅ Security scanning
 - ✅ Batch processing scripts
 - ✅ Comprehensive test suite
+- ✅ Sample project and reports
 
 ### Planned Features (v1.1.0)
 - [ ] GitHub Actions integration

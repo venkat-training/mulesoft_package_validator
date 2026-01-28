@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<apikit:config outboundHeadersMapName="outboundHeadersMapName" httpStatusVarName="httpStatus" doc:name="Router" doc:id="ae002558-0af8-46ee-9ed7-2ba312ccf993" name="Router" api="C:\Work\WS\Rnd\mulesoft\sample-mule-project\src\main\resources\api\orders-api.raml.yaml" />
+	<flow name="api-mainFlow" doc:id="e22a7ae2-c343-4873-8f25-6d85719ad95c" >
+		<apikit:router doc:name="APIkit Router" doc:id="57f401c7-7dc1-4947-8e0b-a637ee9851df" config-ref="Router"/>
+	</flow>
+	
+	
+	
+</mule>

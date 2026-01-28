@@ -1,0 +1,5 @@
+database:
+  user: admin
+  password: admin123
+  # host is missing to trigger validation error
+  port: 3306

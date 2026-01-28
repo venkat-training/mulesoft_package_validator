@@ -1,0 +1,15 @@
+## Common or generic properties
+http:
+  localhost: "127.0.0.1"
+  port: "8081"
+  private:
+    port: "8091"
+https:
+  localhost: "127.0.0.1"
+  port: "8082"
+  basePath: "/api"  
+  private:
+    port: "8092" 
+  keystore:
+    file: "samplemulegen_keystore.jks"
+    pass: "![abeced123$%ajdnielvoaleeee]"

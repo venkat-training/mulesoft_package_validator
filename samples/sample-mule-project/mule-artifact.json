@@ -1,0 +1,10 @@
+{
+  "name": "sample-mule-project",
+  "classifier": "app",
+  "minMuleVersion": "4.9.0",
+  "javaSpecificationVersions": [
+    "17"
+  ],
+  "type": "mule-application"
+ 
+}
