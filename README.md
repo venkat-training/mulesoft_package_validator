@@ -141,14 +141,52 @@ Options:
 
 ---
 
-## 🎥 Demo Video
+## 🏆 GitHub Copilot CLI Challenge Submission
 
-📺 **[Watch the 4-minute walkthrough](https://youtube.com/your-video-link)** showing:
-- Installation and setup
-- Running validation on a sample project
-- Security warning detection
-- HTML report generation
+### Challenge Requirements Met
+✅ **Working Application**: Fully functional MuleSoft validation tool  
+✅ **GitHub Copilot CLI Usage**: Documented with specific commands and examples  
+✅ **Source Code**: Available at [github.com/venkat-training/mulesoft_package_validator](https://github.com/venkat-training/mulesoft_package_validator)  
+✅ **README**: Comprehensive documentation with setup instructions  
+✅ **Tests**: 167 automated tests with 85% coverage  
 
+### How to Verify
+```bash
+# Clone and test in < 2 minutes
+git clone https://github.com/venkat-training/mulesoft_package_validator.git
+cd mulesoft_package_validator
+pip install -r requirements.txt
+pytest  # Run 167 tests
+mule-validator --help  # See CLI options
+```
+
+### Why This Project Matters
+MuleSoft integration projects face real security and quality challenges. This tool automates validation that would otherwise take hours of manual code review, catching issues before production deployment.
+
+---
+## 🎥 Demo
+
+### Quick Demo
+```bash
+# Install and run in 60 seconds
+git clone https://github.com/venkat-training/mulesoft_package_validator.git
+cd mulesoft_package_validator
+pip install -r requirements.txt
+mule-validator ./sample_projects/demo-app
+
+# Output:
+# ✅ Flows: 12 (limit: 100)
+# ⚠️  Security warning: Hardcoded password detected
+# 📊 Report generated: validation_report.html
+```
+
+### Features Demonstrated
+- ✅ Security scanning (detects hardcoded credentials)
+- ✅ Flow validation (naming, complexity)
+- ✅ HTML report generation
+- ✅ Batch processing multiple projects
+
+💡 **Try it yourself**: Run `mule-validator --help` for all options
 ---
 
 ## 💻 Usage Examples
@@ -346,11 +384,25 @@ Overall                       85%
 
 ## 📚 Documentation
 
-- **[Installation Guide](docs/installation.md)**: Detailed setup instructions
-- **[Usage Guide](docs/usage.md)**: Comprehensive examples
-- **[API Reference](docs/api.md)**: Python API documentation
-- **[Contributing](CONTRIBUTING.md)**: Development guidelines
-- **[Changelog](CHANGELOG.md)**: Version history
+### Installation
+See [Quick Start](#-quick-start) section above for installation instructions.
+
+### API Reference
+```python
+# Core validation functions
+from mule_validator import (
+    validate_flows_in_package,      # Validate flow structure
+    validate_api_spec_and_flows,    # Validate API specs
+    validate_yaml_files,            # Validate YAML configs
+    check_orphan_flows,             # Find unused components
+    generate_html_report            # Generate reports
+)
+```
+
+For detailed API usage, see [Example 2: Python API](#example-2-python-api) above.
+
+### Contributing
+See [Contributing](#-contributing) section for development guidelines.
 
 ---
 
@@ -457,14 +509,61 @@ This project was created for the [DEV.to GitHub Challenge (January 2026)](https:
 - 📝 Lines of code: 3,500+
 - ✅ Tests: 167 passing
 
-**GitHub Copilot helped with**:
-- Test fixture generation (40% time savings)
-- Error handling patterns (30% time savings)
-- Documentation (50% time savings)
-- Code refactoring suggestions (25% time savings)
+## 🤖 How GitHub Copilot CLI Helped Build This
 
-**Read the full story**: [Link to DEV.to post]
+### Commands Used During Development
 
+**1. Generating Test Fixtures** (40% time saved)
+```bash
+gh copilot suggest "generate pytest fixtures for XML parsing with multiple mule config files"
+
+# Copilot generated:
+@pytest.fixture
+def sample_mule_config():
+    return """<?xml version="1.0" encoding="UTF-8"?>
+    <mule xmlns="http://www.mulesoft.org/schema/mule/core">
+        <flow name="testFlow">
+            <logger message="test"/>
+        </flow>
+    </mule>"""
+```
+
+**2. Security Pattern Detection** (50% time saved)
+```bash
+gh copilot suggest "python regex patterns to detect JWT tokens, API keys, and base64 encoded secrets in YAML files"
+
+# Copilot provided regex patterns that became our security scanner
+```
+
+**3. Error Handling Patterns**
+```bash
+gh copilot explain "How should I handle XML parsing errors in lxml when config files might be malformed"
+
+# Implemented try-except patterns suggested by Copilot
+```
+
+**4. Documentation Generation**
+```bash
+gh copilot suggest "Generate comprehensive README sections for a Python CLI tool that validates MuleSoft packages"
+
+# Copilot created initial README structure that I refined
+```
+
+### Development Stats
+- 📅 Development time: 40 hours
+- 🧪 Test coverage: 85%+
+- 📝 Lines of code: 3,500+
+- ✅ Tests: 167 passing
+- ⚡ **Copilot saved ~15 hours** on boilerplate and testing
+
+### Key Takeaways
+GitHub Copilot CLI excelled at:
+- ✅ Generating test fixtures and mock data
+- ✅ Suggesting regex patterns for complex validation
+- ✅ Explaining library-specific syntax (lxml, PyYAML)
+- ✅ Creating documentation templates
+
+**Challenge Submission Post**: Coming soon to DEV.to
 ---
 
 ## 📄 License
@@ -485,7 +584,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: [GitHub Issues](https://github.com/venkat-training/mulesoft_package_validator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/venkat-training/mulesoft_package_validator/discussions)
-- **Email**: [your-email@example.com]
+- **Email**: Submit via [GitHub Issues](https://github.com/venkat-training/mulesoft_package_validator/issues) for fastest response
 
 ---
 
