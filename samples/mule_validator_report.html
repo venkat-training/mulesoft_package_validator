@@ -123,15 +123,15 @@
 
 <body>
     <p style="text-align: center;">
-        <strong>Report Generated:</strong> 2026-01-25 21:13:35<br>
-        <strong>Validation Started:</strong> 2026-01-25 21:13:35<br>
-        <strong>Duration:</strong> N/A
+        <strong>Report Generated:</strong> 2026-01-28 09:47:12<br>
+        <strong>Validation Started:</strong> 2026-01-28 09:47:11<br>
+        <strong>Duration:</strong> 0:00:00.511213
     </p>
     <div class="summary-banner warn">
         <h1>Validation Status: WARN</h1>
-        <p>Project: cicd-testing</p>
+        <p>Project: sample-mule-project</p>
         <p>Branch: main</p>
-        <p>Validated on: 2026-01-25 21:13:35</p>
+        <p>Validated on: 2026-01-28 09:47:12</p>
     </div>
 
     <h2>Quality Metrics Scorecard</h2>
@@ -144,7 +144,7 @@
             </tr>
         </thead>
         <tbody>
-            <tr><td>API Spec Found</td><td>No</td><td><span class='badge fail'>FAIL</span></td></tr><tr><td>APIkit Router Found</td><td>N/A</td><td><span class='badge fail'>FAIL</span></td></tr>
+            <tr><td>API Spec Found</td><td>No</td><td><span class='badge fail'>FAIL</span></td></tr><tr><td>Total Flows</td><td>0</td><td><span class='badge pass'>PASS</span></td></tr><tr><td>Sub-Flows</td><td>0</td><td><span class='badge pass'>PASS</span></td></tr><tr><td>Components</td><td>0</td><td><span class='badge pass'>PASS</span></td></tr><tr><td>Orphan Flows</td><td>6</td><td><span class='badge warn'>WARN</span></td></tr><tr><td>Invalid Names</td><td>4</td><td><span class='badge warn'>WARN</span></td></tr>
         </tbody>
     </table>
 
@@ -165,7 +165,18 @@
             Highlights potential code quality, best practice, or anti-pattern issues found in Mule flow XML files.
         </p>
         <div id="code-review-issues">
-            <p>No code review issues detected.</p>
+            <table>
+<thead>
+<tr><th>File               </th><th>Severity  </th><th>Issue                                                                         </th></tr>
+</thead>
+<tbody>
+<tr><td>bad-flow.xml       </td><td>WARNING   </td><td>Flow name &#x27;bad-flow&#x27; does not comply with camel case naming convention.       </td></tr>
+<tr><td>flow2.xml          </td><td>WARNING   </td><td>Logger is missing a message attribute.                                        </td></tr>
+<tr><td>hello-world.xml    </td><td>WARNING   </td><td>Flow name &#x27;hello-worldFlow&#x27; does not comply with camel case naming convention.</td></tr>
+<tr><td>invalidFlowName.xml</td><td>WARNING   </td><td>Flow name &#x27;INVALIDFLOW123&#x27; does not comply with camel case naming convention. </td></tr>
+<tr><td>logging-flow.xml   </td><td>WARNING   </td><td>Flow name &#x27;logging-flow&#x27; does not comply with camel case naming convention.   </td></tr>
+</tbody>
+</table>
         </div>
 
         <h2>YAML Validation Results</h2>
@@ -173,7 +184,15 @@
             Checks YAML configuration files for syntax errors, schema violations, or missing required fields.
         </p>
         <div id="yaml-validation-results">
-            <p>No YAML validation issues found.</p>
+            <table>
+<thead>
+<tr><th>File/Item          </th><th>Error Type  </th><th>Details                 </th></tr>
+</thead>
+<tbody>
+<tr><td>config-prod.yaml   </td><td>Missing     </td><td>Mandatory file not found</td></tr>
+<tr><td>config-nonprod.yaml</td><td>Valid Syntax</td><td>                        </td></tr>
+</tbody>
+</table>
         </div>
 
         <h2>Dependency Validation Results</h2>
@@ -182,7 +201,7 @@
             <code>pom.xml</code> files.
         </p>
         <div id="dependency-validation-results">
-            <p>No dependency issues found.</p>
+            <h4>Dependency Analysis by POM File</h4><h5>C:\Work\WS\Rnd\mulesoft\sample-mule-project\pom.xml</h5><ul><li><strong>Missing JARs (3):</strong><ul><li><code>munit-tools-${munit.version}-mule-plugin.jar</code></li><li><code>munit-runner-${munit.version}-mule-plugin.jar</code></li><li><code>commons-lang3-99.0.jar</code></li></ul></li><li><strong>Unresolved Dependencies (3):</strong><ul><li><code>com.mulesoft.munit:munit-tools:${munit.version}:mule-plugin</code></li><li><code>com.mulesoft.munit:munit-runner:${munit.version}:mule-plugin</code></li><li><code>org.apache.commons:commons-lang3:99.0</code></li></ul></li><li><strong>Duplicate Dependencies (1):</strong><ul><li><code>org.slf4j:slf4j-api</code></li></ul></li><li><strong>Total Dependencies:</strong> 10</li></ul>
         </div>
 
         <h2>Flow Validation Results</h2>
@@ -191,7 +210,7 @@
             or components).
         </p>
         <div id="flow-validation-results">
-            <p>No flow validation issues found.</p>
+            <h4>Flow Analysis Summary</h4><ul><li><strong>Total Flows:</strong> 8</li><li><strong>Total Sub-Flows:</strong> 0</li><li><strong>Total Components:</strong> 16</li><li><strong>Flows within limit:</strong> <span class='badge pass'>✓</span></li><li><strong>Sub-flows within limit:</strong> <span class='badge pass'>✓</span></li><li><strong>Components within limit:</strong> <span class='badge pass'>✓</span></li><li><strong>Naming conventions:</strong> <span class='badge warn'>✗</span></li><li><strong>Invalid Flow Names (4):</strong><ul><li><code>bad-flow</code></li><li><code>hello-worldFlow</code></li><li><code>INVALIDFLOW123</code></li><li><code>logging-flow</code></li></ul></li></ul>
         </div>
 
         <h2>API Validation Results</h2>
@@ -200,7 +219,7 @@
             routers/configs are correctly set up.
         </p>
         <div id="api-validation-results">
-            <p>No API validation issues found.</p>
+            <ul><li><strong>API Spec Dependency:</strong> None</li><li><strong>API Spec ZIP Found:</strong> <span class='badge error'>No</span></li><li><strong>APIkit Router Found:</strong> <span class='badge error'>No</span></li><li><strong>Notes:</strong><ul><li>No API spec dependency with classifier 'raml' and type 'zip' found in pom.xml.</li><li>Expected APIkit router/config file 'sample-mule-project.xml' not found in src/main/mule.</li><li>No APIkit router/config found in 'sample-mule-project.xml' in src/main/mule.</li></ul></li></ul>
         </div>
 
         <h2>Project Uses Mule Secure Properties</h2>
@@ -209,7 +228,7 @@
             handling of secrets.
         </p>
         <div id="secure-properties-results">
-            <p>Not evaluated.</p>
+            <p>True</p>
         </div>
 
         <h2>Logging Validation Results</h2>
@@ -218,7 +237,7 @@
             DEBUG/TRACE levels in production).
         </p>
         <div id="logging-validation-results">
-            <p>No logging issues detected.</p>
+            <h4>Logger Issues</h4><table><thead><tr><th>File</th><th>Flow</th><th>Loggers</th><th>Issues</th></tr></thead><tbody><tr><td><code>flow2.xml</code></td><td><code>flow2</code></td><td>1</td><td>DEBUG level used (1 times)</td></tr><tr><td><code>invalidFlowName.xml</code></td><td><code>INVALIDFLOW123</code></td><td>5</td><td>Too many loggers (5)</td></tr><tr><td><code>logging-flow.xml</code></td><td><code>logging-flow</code></td><td>2</td><td>DEBUG level used (1 times)</td></tr></tbody></table><h4>Log4j Configuration Warnings</h4><ul><li>Root logger set to verbose level: DEBUG</li></ul>
         </div>
 
         <h2>Orphan Checker Results</h2>
@@ -226,14 +245,14 @@
             Identifies any orphaned flows, sub-flows, or resources not referenced in the project.
         </p>
         <div id="orphan-validation-results">
-            <p>No orphan issues found.</p>
+            <h3>Summary</h3><ul><li><strong>Total Orphaned Items:</strong> 22</li><li><strong>Orphan Flows Count:</strong> 6</li><li><strong>Orphan Subflows Count:</strong> 0</li><li><strong>Orphan Configs Count:</strong> 0</li><li><strong>Orphan Variables Count:</strong> 0</li><li><strong>Orphan Env Vars Count:</strong> 0</li><li><strong>Orphan Property Keys Count:</strong> 16</li><li><strong>Orphan Error Handlers Count:</strong> 0</li><li><strong>Orphan Exception Strategies Count:</strong> 0</li><li><strong>Orphan Endpoints Count:</strong> 0</li><li><strong>Orphan Dw Scripts Count:</strong> 0</li></ul><h3>🛑 Orphan Items</h3><details><summary><strong>Flows (6)</strong></summary><ul><li><code class='orphan'>INVALIDFLOW123</code> — <small>src\main\mule\invalidFlowName.xml</small></li><li><code class='orphan'>api-mainFlow</code> — <small>src\main\mule\api-main.xml</small></li><li><code class='orphan'>bad-flow</code> — <small>src\main\mule\bad-flow.xml</small></li><li><code class='orphan'>logging-flow</code> — <small>src\main\mule\logging-flow.xml</small></li><li><code class='orphan'>orphan1</code> — <small>src\main\mule\hello-world.xml</small></li><li><code class='orphan'>orphan2</code> — <small>src\main\mule\hello-world.xml</small></li></ul></details><details><summary><strong>Property Keys (16)</strong></summary><ul><li><code class='orphan'>app_name</code></li><li><code class='orphan'>credentials.admin_password</code></li><li><code class='orphan'>database.password</code></li><li><code class='orphan'>database.port</code></li><li><code class='orphan'>database.user</code></li><li><code class='orphan'>db.password</code></li><li><code class='orphan'>environment</code></li><li><code class='orphan'>http.localhost</code></li><li><code class='orphan'>http.port</code></li><li><code class='orphan'>https.basepath</code></li><li><code class='orphan'>https.keystore.file</code></li><li><code class='orphan'>https.keystore.pass</code></li><li><code class='orphan'>https.localhost</code></li><li><code class='orphan'>https.port</code></li><li><code class='orphan'>https.private.port</code></li><li><code class='orphan'>version</code></li></ul></details><h3>✅ Used Items</h3><details><summary><strong>Flows (2)</strong></summary><ul><li><code class='used'>flow2</code> — <small>src\main\mule\flow2.xml</small></li><li><code class='used'>hello-worldFlow</code> — <small>src\main\mule\hello-world.xml</small></li></ul></details><details><summary><strong>Configs (2)</strong></summary><ul><li><code class='used'>HTTP_Listener_config</code></li><li><code class='used'>Router</code></li></ul></details><details><summary><strong>Property Keys (1)</strong></summary><ul><li><code class='used'>http.private.port</code></li></ul></details><details><summary><strong>Endpoints (1)</strong></summary><ul><li><code class='used'>HTTP_Listener_config</code></li></ul></details><h3>📦 Declared Items</h3><details><summary><strong>Flows (8)</strong></summary><ul><li><code class='declared'>INVALIDFLOW123</code></li><li><code class='declared'>api-mainFlow</code></li><li><code class='declared'>bad-flow</code></li><li><code class='declared'>flow2</code></li><li><code class='declared'>hello-worldFlow</code></li><li><code class='declared'>logging-flow</code></li><li><code class='declared'>orphan1</code></li><li><code class='declared'>orphan2</code></li></ul></details><details><summary><strong>Configs (2)</strong></summary><ul><li><code class='declared'>HTTP_Listener_config</code></li><li><code class='declared'>Router</code></li></ul></details><details><summary><strong>Property Keys (17)</strong></summary><ul><li><code class='declared'>app_name</code></li><li><code class='declared'>credentials.admin_password</code></li><li><code class='declared'>database.password</code></li><li><code class='declared'>database.port</code></li><li><code class='declared'>database.user</code></li><li><code class='declared'>db.password</code></li><li><code class='declared'>environment</code></li><li><code class='declared'>http.localhost</code></li><li><code class='declared'>http.port</code></li><li><code class='declared'>http.private.port</code></li><li><code class='declared'>https.basepath</code></li><li><code class='declared'>https.keystore.file</code></li><li><code class='declared'>https.keystore.pass</code></li><li><code class='declared'>https.localhost</code></li><li><code class='declared'>https.port</code></li><li><code class='declared'>https.private.port</code></li><li><code class='declared'>version</code></li></ul></details><details><summary><strong>Endpoints (1)</strong></summary><ul><li><code class='declared'>HTTP_Listener_config</code></li></ul></details>
         </div>
     </div>
 
     <footer style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #666; border-top: 1px solid #ddd; padding-top: 10px;">
         Mule Validator v1.0.0<br>
         Python 3.14.0<br>
-        Generated at 2026-01-25 21:13:35
+        Generated at 2026-01-28 09:47:12
     </footer>
 </body>
 

@@ -84,52 +84,6 @@ def calculate_status(all_results):
     
     return "PASS"
 
-def normalize_code_review_results(results):
-    seen = set()
-    files_with_issues = set()
-    normalized = []
-
-    for item in results:
-        if not isinstance(item, dict):
-            continue  # hard guard
-
-        file_name = item.get("file")
-        severity = item.get("severity", "")
-        comment = item.get("comment", "")
-
-        if severity != "No Issues":
-            key = (file_name, severity, comment)
-            if key not in seen:
-                seen.add(key)
-                files_with_issues.add(file_name)
-                normalized.append(item)
-
-    for item in results:
-        if not isinstance(item, dict):
-            continue
-
-        if item.get("severity") == "No Issues":
-            file_name = item.get("file")
-            if file_name not in files_with_issues:
-                normalized.append(item)
-                files_with_issues.add(file_name)
-
-    return normalized
-
-def flatten_code_review_results(results):
-    """
-    Flattens nested lists returned by code reviewer into a single list of dicts.
-    """
-    flattened = []
-
-    for item in results:
-        if isinstance(item, list):
-            flattened.extend(item)
-        elif isinstance(item, dict):
-            flattened.append(item)
-
-    return flattened
-
 # -------------------------
 # Main CLI
 # -------------------------
@@ -158,9 +112,7 @@ def main():
     # -------------------------
     logger.info("Reviewing code and flows...")
     try:
-        code_reviewer_results, project_uses_secure_properties = code_reviewer.review_all_files(project_path)
-        #flat_results = flatten_code_review_results(raw_code_reviewer_results)
-        #code_reviewer_results = normalize_code_review_results(raw_code_reviewer_results)
+        code_reviewer_results, project_uses_secure_properties = code_reviewer.review_all_files(project_path)        
         logger.info(f"DEBUG: Code review results count: {len(code_reviewer_results) if code_reviewer_results else 0}")
         logger.info(f"DEBUG: Code review sample: {code_reviewer_results[:2] if code_reviewer_results else 'empty'}")
     except Exception as e:

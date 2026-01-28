@@ -552,12 +552,12 @@ class MuleComprehensiveOrphanChecker:
         }
 
         # SAVE REPORT TO JSON FILE FOR DEBUGGING
-        try:
-            with open('orphan_report_debug.json', 'w', encoding='utf-8') as f:
-                json.dump(report, f, indent=2)
-            self.logger.info("Debug JSON report saved to: orphan_report_debug.json")
-        except Exception as e:
-            self.logger.error(f"Failed to save debug JSON: {e}")
+        #try:
+            #with open('orphan_report_debug.json', 'w', encoding='utf-8') as f:
+                #json.dump(report, f, indent=2)
+            #self.logger.info("Debug JSON report saved to: orphan_report_debug.json")
+        #except Exception as e:
+            #self.logger.error(f"Failed to save debug JSON: {e}")
 
         return report
 
