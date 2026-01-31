@@ -12,7 +12,7 @@ setup(
     name='mulesoft-package-validator',
     version='1.0.0',
     author='Venkat',
-    author_email='your.email@example.com',  # UPDATE THIS
+    author_email='venkiwm@gmail.com',
     description='Comprehensive validation tool for MuleSoft projects',
     long_description=long_description,
     long_description_content_type='text/markdown',
