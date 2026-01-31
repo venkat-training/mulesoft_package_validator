@@ -1,6 +1,8 @@
 # 🛡️ MuleSoft Package Validator
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/mulesoft-package-validator.svg)](https://badge.fury.io/py/mulesoft-package-validator)
+[![PyPI Downloads](https://static.pepy.tech/badge/mulesoft-package-validator)](https://pepy.tech/project/mulesoft-package-validator)
 [![Tests](https://img.shields.io/badge/tests-171%20passing-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Sample Reports](https://img.shields.io/badge/sample-reports-blue.svg)](samples/)
@@ -77,37 +79,43 @@ Actionable insights in multiple formats:
 
 ### Installation
 
+**From PyPI (Recommended):**
 ```bash
-# Clone the repository
+pip install mulesoft-package-validator
+```
+
+**From Source (Development):**
+```bash
 git clone https://github.com/venkat-training/mulesoft_package_validator.git
 cd mulesoft_package_validator
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install CLI command
 pip install -e .
-
-# Verify installation
-python -m mule_validator_cli --help
-
-# Test on sample project
-python -m mule_validator_cli --project ./samples/sample-mule-project
 ```
 
 ### Basic Usage
 
-**Option 1: Using installed command** (if PATH configured):
+**Using the installed command:**
 ```bash
+# Validate a MuleSoft project
 mule-validator /path/to/mulesoft/project
+
+# Generate HTML report
+mule-validator /path/to/project --report-file report.html
 ```
 
-**Option 2: Using Python module** (works everywhere):
+**Using Python module** (works everywhere, including Windows):
 ```bash
 python -m mule_validator_cli --project /path/to/mulesoft/project
 ```
 
-**Windows users**: If `mule-validator` doesn't work, use Option 2 or add Python Scripts to PATH (see [Windows Setup](#-windows-users-path-configuration) below).
+**Quick test with sample project:**
+```bash
+# Clone repository to access sample project
+git clone https://github.com/venkat-training/mulesoft_package_validator.git
+cd mulesoft_package_validator
+
+# Test the validator
+python -m mule_validator_cli --project ./samples/sample-mule-project
+```
 
 ---
 
@@ -211,18 +219,22 @@ Options:
 
 ### How to Verify
 ```bash
-# Clone and test in < 2 minutes
+# Install from PyPI and test in < 1 minute
+pip install mulesoft-package-validator
+mule-validator --help
+
+# Or clone and test with sample project
 git clone https://github.com/venkat-training/mulesoft_package_validator.git
 cd mulesoft_package_validator
-pip install -r requirements.txt
 pip install -e .
 pytest  # Run 171 tests
-python -m mule_validator_cli --help  # See CLI options
-python -m mule_validator_cli --project ./samples/sample-mule-project  # Test validation
+python -m mule_validator_cli --project ./samples/sample-mule-project
 ```
 
 ### Why This Project Matters
 MuleSoft integration projects face real security and quality challenges. This tool automates validation that would otherwise take hours of manual code review, catching issues before production deployment.
+
+**📦 Now Available on PyPI:** Install with a single command and start validating your MuleSoft projects immediately!
 
 ---
 
@@ -230,11 +242,14 @@ MuleSoft integration projects face real security and quality challenges. This to
 
 ### Quick Demo
 ```bash
-# Install and run in 60 seconds
+# Install from PyPI
+pip install mulesoft-package-validator
+
+# Clone repo to get sample project
 git clone https://github.com/venkat-training/mulesoft_package_validator.git
 cd mulesoft_package_validator
-pip install -r requirements.txt
-pip install -e .
+
+# Run validation on sample project
 python -m mule_validator_cli --project ./samples/sample-mule-project
 
 # Expected Output:
@@ -270,13 +285,12 @@ These reports were generated from our [sample MuleSoft project](samples/sample-m
 We've included a sample MuleSoft project for you to test the validator:
 
 ```bash
-# 1. Clone the repository
+# 1. Install from PyPI
+pip install mulesoft-package-validator
+
+# 2. Clone repository for sample project
 git clone https://github.com/venkat-training/mulesoft_package_validator.git
 cd mulesoft_package_validator
-
-# 2. Install dependencies
-pip install -r requirements.txt
-pip install -e .
 
 # 3. Run validator on sample project
 python -m mule_validator_cli --project ./samples/sample-mule-project
@@ -503,6 +517,7 @@ Overall                       85%
 - **Testing**: pytest (171 tests)
 - **Reporting**: tabulate, custom HTML templates
 - **Build Integration**: Maven (`mvn clean install`)
+- **Distribution**: PyPI (pip installable)
 
 ---
 
@@ -510,6 +525,11 @@ Overall                       85%
 
 ### Installation
 See [Quick Start](#-quick-start) section above for installation instructions.
+
+### PyPI Package
+- **Package Page**: https://pypi.org/project/mulesoft-package-validator/
+- **Install**: `pip install mulesoft-package-validator`
+- **Upgrade**: `pip install --upgrade mulesoft-package-validator`
 
 ### API Reference
 ```python
@@ -615,6 +635,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 - ✅ Batch processing scripts
 - ✅ Comprehensive test suite
 - ✅ Sample project and reports
+- ✅ PyPI distribution
 
 ### Planned Features (v1.1.0)
 - [ ] GitHub Actions integration
@@ -641,6 +662,9 @@ This project was created for the [DEV.to GitHub Challenge (January 2026)](https:
 - 🧪 Test coverage: 85%+
 - 📝 Lines of code: 3,500+
 - ✅ Tests: 171 passing
+- 📦 Published to PyPI: [mulesoft-package-validator](https://pypi.org/project/mulesoft-package-validator/)
+
+**Read the submission**: [Building a MuleSoft Package Validator with GitHub Copilot CLI](https://dev.to/venkattraining/building-a-mulesoft-package-validator-with-github-copilot-cli-1n0c)
 
 ---
 
@@ -698,8 +722,6 @@ GitHub Copilot CLI excelled at:
 - ✅ Explaining library-specific syntax (lxml, PyYAML)
 - ✅ Creating documentation templates
 
-**Challenge Submission Article**: Coming soon to DEV.to
-
 ---
 
 ## 📄 License
@@ -713,11 +735,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Built with ❤️ for the MuleSoft developer community
 - Inspired by real-world integration challenges
 - Powered by [GitHub Copilot](https://github.com/features/copilot) during development
+- Published on [PyPI](https://pypi.org/project/mulesoft-package-validator/) for worldwide accessibility
 
 ---
 
 ## 📧 Support & Contact
 
+- **PyPI Package**: https://pypi.org/project/mulesoft-package-validator/
 - **Issues**: [GitHub Issues](https://github.com/venkat-training/mulesoft_package_validator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/venkat-training/mulesoft_package_validator/discussions)
 - **Email**: Submit via [GitHub Issues](https://github.com/venkat-training/mulesoft_package_validator/issues) for fastest response
@@ -727,6 +751,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
 
 **⭐ Star this repo if you find it useful!**
+
+**📦 [Install from PyPI](https://pypi.org/project/mulesoft-package-validator/)** | **📝 [Read DEV.to Article](https://dev.to/venkattraining/building-a-mulesoft-package-validator-with-github-copilot-cli-1n0c)**
 
 Made with 🚀 by [Venkat](https://github.com/venkat-training)
 
